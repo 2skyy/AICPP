@@ -4,6 +4,8 @@ import '../config/naver_map_config.dart';
 import '../constants/regions.dart';
 import '../models/user_profile.dart';
 import '../theme/toss_colors.dart';
+import '../widgets/toss_button.dart';
+import '../widgets/toss_chip_selector.dart';
 
 const _homeRegionColor = TossColors.primary;
 const _interestedRegionColor = Color(0xFFFF8B3D);
@@ -19,18 +21,20 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   NaverMapController? _mapController;
+  late Set<String> _interestedRegions =
+      widget.profile.interestedRegions.toSet();
 
   UserProfile get profile => widget.profile;
 
-  Future<void> _onMapReady(NaverMapController controller) async {
-    final markers = <NMarker>{
+  Set<NMarker> _buildMarkers() {
+    return {
       NMarker(
         id: 'home_${profile.region}',
         position: kRegionCoordinates[profile.region]!,
         iconTintColor: _homeRegionColor,
         caption: NOverlayCaption(text: profile.region),
       ),
-      for (final region in profile.interestedRegions)
+      for (final region in _interestedRegions)
         NMarker(
           id: 'interest_$region',
           position: kRegionCoordinates[region]!,
@@ -38,8 +42,78 @@ class _MainScreenState extends State<MainScreen> {
           caption: NOverlayCaption(text: region),
         ),
     };
-    await controller.addOverlayAll(markers);
+  }
+
+  Future<void> _onMapReady(NaverMapController controller) async {
+    await controller.addOverlayAll(_buildMarkers());
     setState(() => _mapController = controller);
+  }
+
+  Future<void> _refreshMarkers() async {
+    final controller = _mapController;
+    if (controller == null) return;
+    await controller.clearOverlays(type: NOverlayType.marker);
+    await controller.addOverlayAll(_buildMarkers());
+  }
+
+  Future<void> _openRegionPicker() async {
+    final updated = Set<String>.from(_interestedRegions);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '관심지역 추가',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: TossColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TossChipSelector(
+                    label: '관심지역 (복수 선택 가능)',
+                    options: kRegions,
+                    selected: updated,
+                    multiSelect: true,
+                    onToggle: (region) => setSheetState(() {
+                      if (updated.contains(region)) {
+                        updated.remove(region);
+                      } else {
+                        updated.add(region);
+                      }
+                    }),
+                  ),
+                  const SizedBox(height: 24),
+                  TossButton(
+                    label: '완료',
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    setState(() => _interestedRegions = updated);
+    await _refreshMarkers();
   }
 
   @override
@@ -57,13 +131,25 @@ class _MainScreenState extends State<MainScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                '관심지역 지도',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: TossColors.textPrimary,
-                ),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      '관심지역 지도',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: TossColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _openRegionPicker,
+                    icon: const Icon(Icons.add_location_alt_outlined),
+                    color: TossColors.primary,
+                    tooltip: '관심지역 추가',
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               if (naverMapClientId.isNotEmpty && isNaverMapSupportedPlatform)
@@ -73,7 +159,7 @@ class _MainScreenState extends State<MainScreen> {
               Expanded(
                 child: naverMapClientId.isEmpty || !isNaverMapSupportedPlatform
                     ? _NaverMapPlaceholder(
-                        regions: profile.interestedRegions,
+                        regions: _interestedRegions.toList(),
                         unsupportedPlatform: !isNaverMapSupportedPlatform,
                       )
                     : ClipRRect(

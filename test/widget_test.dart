@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:aicpp/main.dart';
+import 'package:aicpp/models/user_profile.dart';
+import 'package:aicpp/screens/main_screen.dart';
 import 'package:aicpp/screens/profile_setup_screen.dart';
 import 'package:aicpp/widgets/toss_chip_selector.dart';
 
@@ -138,6 +140,43 @@ void main() {
 
     expect(find.text('올바른 이메일 형식이 아니에요'), findsOneWidget);
     expect(find.text('프로필을 완성해주세요'), findsNothing);
+  });
+
+  testWidgets('Main screen lets the user add an interested region',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const MaterialApp(
+      home: MainScreen(
+        profile: UserProfile(
+          name: '홍길동',
+          email: 'test@example.com',
+          age: 24,
+          gender: '남성',
+          school: '한국대학교',
+          gpa: 4.0,
+          enrollmentStatus: '재학',
+          region: '서울특별시',
+          interestedRegions: [],
+        ),
+      ),
+    ));
+
+    expect(find.text('제주특별자치도'), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.add_location_alt_outlined));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.descendant(
+        of: find.byType(TossChipSelector), matching: find.text('제주특별자치도')));
+    await tester.pump();
+    await tester.tap(find.text('완료'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('제주특별자치도'), findsOneWidget);
   });
 
   testWidgets('GPA field blocks values above 4.5 and rounds to two decimals',
