@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:aicpp/main.dart';
 import 'package:aicpp/models/user_profile.dart';
+import 'package:aicpp/screens/home_shell.dart';
 import 'package:aicpp/screens/main_screen.dart';
 import 'package:aicpp/screens/profile_setup_screen.dart';
 import 'package:aicpp/widgets/toss_chip_selector.dart';
@@ -149,12 +150,12 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MaterialApp(
+    await tester.pumpWidget(MaterialApp(
       home: MainScreen(
         profile: UserProfile(
           name: '홍길동',
           email: 'test@example.com',
-          age: 24,
+          birthDate: DateTime(2000, 1, 1),
           gender: '남성',
           school: '한국대학교',
           gpa: 4.0,
@@ -176,6 +177,158 @@ void main() {
     await tester.tap(find.text('완료'));
     await tester.pumpAndSettle();
 
+    expect(find.text('제주특별자치도'), findsOneWidget);
+  });
+
+  testWidgets('Bottom navigation switches between map, chat, and profile tabs',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(MaterialApp(
+      home: HomeShell(
+        profile: UserProfile(
+          name: '홍길동',
+          email: 'test@example.com',
+          birthDate: DateTime(2000, 1, 1),
+          gender: '남성',
+          school: '한국대학교',
+          gpa: 4.0,
+          enrollmentStatus: '재학',
+          region: '서울특별시',
+          interestedRegions: ['부산광역시'],
+        ),
+      ),
+    ));
+
+    expect(find.textContaining('환영해요'), findsOneWidget);
+
+    await tester.tap(find.text('채팅'));
+    await tester.pumpAndSettle();
+    expect(find.text('채팅 기능은 준비 중이에요'), findsOneWidget);
+
+    await tester.tap(find.text('프로필'));
+    await tester.pumpAndSettle();
+    expect(find.text('홍길동'), findsOneWidget);
+    expect(find.text('한국대학교'), findsOneWidget);
+    expect(find.text('로그아웃'), findsOneWidget);
+
+    await tester.tap(find.text('로그아웃'));
+    await tester.pumpAndSettle();
+    expect(find.text('안녕하세요!\n이메일로 로그인해주세요'), findsOneWidget);
+  });
+
+  testWidgets('Editing the profile updates what is shown on the profile tab',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(MaterialApp(
+      home: HomeShell(
+        profile: UserProfile(
+          name: '홍길동',
+          email: 'test@example.com',
+          birthDate: DateTime(2000, 1, 1),
+          gender: '남성',
+          school: '한국대학교',
+          gpa: 4.0,
+          enrollmentStatus: '재학',
+          region: '서울특별시',
+          interestedRegions: ['부산광역시'],
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('프로필'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.edit_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text('프로필 수정'), findsOneWidget);
+    expect(find.text('관심지역'), findsNothing);
+    expect(find.text('관심지역 (복수 선택 가능)'), findsNothing);
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), '김철수');
+    await tester.enterText(fields.at(3), '한국과학기술원');
+    await tester.pump();
+
+    await tester.tap(fields.at(2));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('15'));
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('세)'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('저장'));
+    await tester.tap(find.text('저장'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('프로필 수정'), findsNothing);
+    expect(find.text('김철수'), findsOneWidget);
+    expect(find.text('한국과학기술원'), findsOneWidget);
+    expect(find.text('홍길동'), findsNothing);
+    expect(find.text('관심지역'), findsOneWidget);
+    expect(find.text('부산광역시'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Adding/removing an interested region on the map syncs to the profile tab',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(MaterialApp(
+      home: HomeShell(
+        profile: UserProfile(
+          name: '홍길동',
+          email: 'test@example.com',
+          birthDate: DateTime(2000, 1, 1),
+          gender: '남성',
+          school: '한국대학교',
+          gpa: 4.0,
+          enrollmentStatus: '재학',
+          region: '서울특별시',
+          interestedRegions: ['부산광역시'],
+        ),
+      ),
+    ));
+
+    // Add 제주특별자치도 from the map screen's region picker.
+    await tester.tap(find.byIcon(Icons.add_location_alt_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(
+        of: find.byType(TossChipSelector), matching: find.text('제주특별자치도')));
+    await tester.pump();
+    await tester.tap(find.text('완료'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('프로필'));
+    await tester.pumpAndSettle();
+    expect(find.text('부산광역시'), findsOneWidget);
+    expect(find.text('제주특별자치도'), findsOneWidget);
+
+    // Remove 부산광역시 from the map screen's region picker.
+    await tester.tap(find.text('지도'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.add_location_alt_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(
+        of: find.byType(TossChipSelector), matching: find.text('부산광역시')));
+    await tester.pump();
+    await tester.tap(find.text('완료'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('프로필'));
+    await tester.pumpAndSettle();
+    expect(find.text('부산광역시'), findsNothing);
     expect(find.text('제주특별자치도'), findsOneWidget);
   });
 

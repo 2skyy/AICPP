@@ -4,7 +4,7 @@ import '../theme/toss_colors.dart';
 import '../widgets/social_login_button.dart';
 import '../widgets/toss_button.dart';
 import '../widgets/toss_text_field.dart';
-import 'main_screen.dart';
+import 'home_shell.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -32,11 +32,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => MainScreen(
+        builder: (_) => HomeShell(
           profile: UserProfile(
             name: email.split('@').first,
             email: email,
-            age: 0,
+            birthDate: null,
             gender: '',
             school: '',
             gpa: 0,

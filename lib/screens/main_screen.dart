@@ -11,9 +11,14 @@ const _homeRegionColor = TossColors.primary;
 const _interestedRegionColor = Color(0xFFFF8B3D);
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key, required this.profile});
+  const MainScreen({
+    super.key,
+    required this.profile,
+    this.onInterestedRegionsChanged,
+  });
 
   final UserProfile profile;
+  final ValueChanged<List<String>>? onInterestedRegionsChanged;
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -113,6 +118,7 @@ class _MainScreenState extends State<MainScreen> {
       },
     );
     setState(() => _interestedRegions = updated);
+    widget.onInterestedRegionsChanged?.call(updated.toList());
     await _refreshMarkers();
   }
 

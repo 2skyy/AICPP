@@ -7,6 +7,11 @@ class Validators {
 
   static bool isValidPassword(String value) => value.length >= 8;
 
+  static bool isValidAge(String value) {
+    final age = int.tryParse(value);
+    return age != null && age > 0 && age < 120;
+  }
+
   static bool isValidGpa(String value) {
     final gpa = double.tryParse(value);
     return gpa != null && gpa >= 0 && gpa <= 4.5;
