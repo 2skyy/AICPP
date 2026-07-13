@@ -36,7 +36,7 @@ class _HomeShellState extends State<HomeShell> {
             profile: _profile,
             onInterestedRegionsChanged: _handleInterestedRegionsChanged,
           ),
-          const ChatScreen(),
+          ChatScreen(profile: _profile),
           ProfileScreen(profile: _profile, onProfileUpdated: _updateProfile),
         ],
       ),

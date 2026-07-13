@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:aicpp/main.dart';
 import 'package:aicpp/models/user_profile.dart';
+import 'package:aicpp/screens/chat_screen.dart';
 import 'package:aicpp/screens/home_shell.dart';
 import 'package:aicpp/screens/main_screen.dart';
 import 'package:aicpp/screens/profile_setup_screen.dart';
@@ -207,7 +208,7 @@ void main() {
 
     await tester.tap(find.text('채팅'));
     await tester.pumpAndSettle();
-    expect(find.text('채팅 기능은 준비 중이에요'), findsOneWidget);
+    expect(find.text('정책 어시스턴트'), findsOneWidget);
 
     await tester.tap(find.text('프로필'));
     await tester.pumpAndSettle();
@@ -330,6 +331,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('부산광역시'), findsNothing);
     expect(find.text('제주특별자치도'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Chat screen sends a suggested question and shows the profile context',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: ChatScreen(
+        profile: UserProfile(
+          name: '홍길동',
+          email: 'test@example.com',
+          birthDate: DateTime(2000, 1, 1),
+          gender: '남성',
+          school: '한국대학교',
+          gpa: 4.0,
+          enrollmentStatus: '재학',
+          region: '서울특별시',
+          interestedRegions: const [],
+        ),
+      ),
+    ));
+
+    expect(find.text('내 지역 청년 주거지원이 궁금해요'), findsOneWidget);
+
+    await tester.tap(find.text('내 지역 청년 주거지원이 궁금해요'));
+    await tester.pump();
+
+    expect(find.text('내 지역 청년 주거지원이 궁금해요'), findsOneWidget);
+    expect(find.textContaining('컨텍스트: 서울특별시'), findsOneWidget);
+    expect(find.textContaining('재학'), findsWidgets);
   });
 
   testWidgets('GPA field blocks values above 4.5 and rounds to two decimals',
