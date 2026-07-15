@@ -1,0 +1,23 @@
+
+# 1. 웹 프레임워크 및 서버
+fastapi
+uvicorn[standard]
+
+# 2. 데이터베이스 및 ORM2
+# sqlalchemy
+# psycopg2-binary
+# pgvector
+# alembic
+# pydantic-settings
+python-dotenv
+
+# 3. 데이터 검증
+# pydantic[email]
+
+# 4. 보안 및 인증
+# passlib[bcrypt]
+# python-jose[cryptography]
+# python-multipart
+
+# 5. 기타
+requests
