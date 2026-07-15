@@ -56,9 +56,49 @@ class OntongPolicyServiceTest(unittest.TestCase):
             pageSize=20,
             rtnType="json",
             query="청년취업",
+            plcyNm=None,
+            plcyKywdNm=None,
             keyword="채용,구직",
             bizTycdSel="023010,023020",
             srchPolyBizSecd="003002001",
+        )
+
+    def test_maps_name_to_plcyNm(self):
+        client = Mock()
+        client.get_policies.return_value = {"items": []}
+        service = OntongPolicyService(client)
+
+        service.search(name="서울", page=1, size=1)
+
+        client.get_policies.assert_called_once_with(
+            pageNum=1,
+            pageSize=1,
+            rtnType="json",
+            query=None,
+            plcyNm="서울",
+            plcyKywdNm=None,
+            keyword=None,
+            bizTycdSel=None,
+            srchPolyBizSecd=None,
+        )
+
+    def test_maps_topic_to_plcyKywdNm(self):
+        client = Mock()
+        client.get_policies.return_value = {"items": []}
+        service = OntongPolicyService(client)
+
+        service.search(topic="주거", page=1, size=1)
+
+        client.get_policies.assert_called_once_with(
+            pageNum=1,
+            pageSize=1,
+            rtnType="json",
+            query=None,
+            plcyNm=None,
+            plcyKywdNm="주거",
+            keyword=None,
+            bizTycdSel=None,
+            srchPolyBizSecd=None,
         )
 
 

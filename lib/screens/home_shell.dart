@@ -1,14 +1,25 @@
 import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
+import '../services/policy_api_service.dart';
 import '../theme/toss_colors.dart';
 import 'chat_screen.dart';
 import 'main_screen.dart';
 import 'profile_screen.dart';
+import 'report_screen.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, required this.profile});
+  const HomeShell({
+    super.key,
+    required this.profile,
+    this.mapPolicyApiService,
+    this.reportPolicyApiService,
+    this.chatPolicyApiService,
+  });
 
   final UserProfile profile;
+  final PolicyApiService? mapPolicyApiService;
+  final PolicyApiService? reportPolicyApiService;
+  final PolicyApiService? chatPolicyApiService;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -35,8 +46,14 @@ class _HomeShellState extends State<HomeShell> {
           MainScreen(
             profile: _profile,
             onInterestedRegionsChanged: _handleInterestedRegionsChanged,
+            policyApiService: widget.mapPolicyApiService,
           ),
-          ChatScreen(profile: _profile),
+          ReportScreen(
+            profile: _profile,
+            onProfileUpdated: _updateProfile,
+            policyApiService: widget.reportPolicyApiService,
+          ),
+          ChatScreen(profile: _profile, policyApiService: widget.chatPolicyApiService),
           ProfileScreen(profile: _profile, onProfileUpdated: _updateProfile),
         ],
       ),
@@ -49,6 +66,11 @@ class _HomeShellState extends State<HomeShell> {
             icon: Icon(Icons.map_outlined),
             selectedIcon: Icon(Icons.map),
             label: '지도',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.bar_chart_outlined),
+            selectedIcon: Icon(Icons.bar_chart),
+            label: '리포트',
           ),
           NavigationDestination(
             icon: Icon(Icons.chat_bubble_outline),

@@ -13,6 +13,8 @@ class OntongPolicyService:
     def search(
         self,
         query: str | None = None,
+        name: str | None = None,
+        topic: str | None = None,
         keywords: Sequence[str] | None = None,
         business_types: Sequence[str] | None = None,
         region_codes: Sequence[str] | None = None,
@@ -24,6 +26,8 @@ class OntongPolicyService:
             pageSize=size,
             rtnType="json",
             query=query,
+            plcyNm=name,
+            plcyKywdNm=topic,
             keyword=self._join(keywords),
             bizTycdSel=self._join(business_types),
             srchPolyBizSecd=self._join(region_codes),

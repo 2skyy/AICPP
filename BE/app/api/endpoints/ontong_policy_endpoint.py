@@ -15,6 +15,14 @@ def get_policy_service() -> OntongPolicyService:
 @router.get("/search")
 def search_policies(
     query: str | None = None,
+    # 정책명(plcyNm) 검색. 실제 온통청년 API에서 검증된 필터 파라미터.
+    # 다른 필터(query/keyword/business_type/region_code)는 API가 인식하지
+    # 못하는 이름이라 무시된다는 게 확인되어 그대로 두고, name만 추가함.
+    name: str | None = None,
+    # 정책키워드(plcyKywdNm) 검색. plcyNm과 마찬가지로 실제 API에서 검증된
+    # 필터 파라미터. 정책명이 아니라 주제 키워드(주거/취업 등) 기준으로
+    # 더 넓게 매칭하고 싶을 때 사용한다.
+    topic: str | None = None,
     keyword: list[str] | None = Query(default=None),
     business_type: list[str] | None = Query(default=None),
     region_code: list[str] | None = Query(default=None),
@@ -25,6 +33,8 @@ def search_policies(
     try:
         return service.search(
             query=query,
+            name=name,
+            topic=topic,
             keywords=keyword,
             business_types=business_type,
             region_codes=region_code,

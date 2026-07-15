@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
 import '../theme/toss_colors.dart';
 import 'edit_profile_screen.dart';
+import 'interested_region_screen.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -14,7 +15,26 @@ class ProfileScreen extends StatelessWidget {
   final UserProfile profile;
   final ValueChanged<UserProfile> onProfileUpdated;
 
-  void _logout(BuildContext context) {
+  Future<void> _confirmLogout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('로그아웃 하시겠어요?'),
+        content: const Text('다시 로그인해야 이용할 수 있어요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('로그아웃', style: TextStyle(color: TossColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
       (route) => false,
@@ -26,6 +46,18 @@ class ProfileScreen extends StatelessWidget {
       MaterialPageRoute(builder: (_) => EditProfileScreen(profile: profile)),
     );
     if (updated != null) onProfileUpdated(updated);
+  }
+
+  Future<void> _editInterestedRegions(BuildContext context) async {
+    final updated = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute(
+        builder: (_) => InterestedRegionScreen(
+          initialRegions: profile.interestedRegions,
+          homeRegion: profile.region,
+        ),
+      ),
+    );
+    if (updated != null) onProfileUpdated(profile.copyWith(interestedRegions: updated));
   }
 
   @override
@@ -96,13 +128,29 @@ class ProfileScreen extends StatelessWidget {
               ),
               _ProfileInfoRow(label: '지역', value: profile.region),
               const SizedBox(height: 24),
-              const Text(
-                '관심지역',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: TossColors.textSecondary,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '관심지역',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: TossColors.textSecondary,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => _editInterestedRegions(context),
+                    child: const Text(
+                      '관리',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: TossColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               profile.interestedRegions.isEmpty
@@ -124,7 +172,7 @@ class ProfileScreen extends StatelessWidget {
               const SizedBox(height: 40),
               Center(
                 child: TextButton(
-                  onPressed: () => _logout(context),
+                  onPressed: () => _confirmLogout(context),
                   child: const Text(
                     '로그아웃',
                     style: TextStyle(color: TossColors.error, fontWeight: FontWeight.w600),

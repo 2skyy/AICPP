@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import '../config/naver_map_config.dart';
 import '../constants/regions.dart';
 import '../models/user_profile.dart';
+import '../services/policy_api_service.dart';
 import '../theme/toss_colors.dart';
+import '../widgets/policy_list_sheet.dart';
 import '../widgets/toss_button.dart';
 import '../widgets/toss_chip_selector.dart';
 
@@ -15,43 +19,71 @@ class MainScreen extends StatefulWidget {
     super.key,
     required this.profile,
     this.onInterestedRegionsChanged,
+    this.policyApiService,
   });
 
   final UserProfile profile;
   final ValueChanged<List<String>>? onInterestedRegionsChanged;
+  final PolicyApiService? policyApiService;
 
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
+  late final _policyApi = widget.policyApiService ?? PolicyApiService();
   NaverMapController? _mapController;
   late Set<String> _interestedRegions =
       widget.profile.interestedRegions.toSet();
+  final Map<String, int> _policyCounts = {};
 
   UserProfile get profile => widget.profile;
 
+  Set<String> get _allRegions => {profile.region, ..._interestedRegions};
+
+  Future<void> _loadPolicyCounts() async {
+    final regions = _allRegions;
+    final entries = await Future.wait(regions.map((region) async {
+      try {
+        // totalCount from the API includes closed/not-yet-open policies, so
+        // fetch a page and count only ones open as of today.
+        final result = await _policyApi.search(name: region, size: 50);
+        final openCount = result.items.where((item) => item.isCurrentlyOpen).length;
+        return MapEntry(region, openCount);
+      } on PolicyApiException {
+        return MapEntry(region, -1);
+      }
+    }));
+    if (!mounted) return;
+    setState(() => _policyCounts
+      ..clear()
+      ..addEntries(entries));
+    await _refreshMarkers();
+  }
+
+  String _captionFor(String region) {
+    final count = _policyCounts[region];
+    if (count == null) return region;
+    if (count < 0) return '$region (조회 실패)';
+    return '$region · $count건';
+  }
+
   Set<NMarker> _buildMarkers() {
     return {
-      NMarker(
-        id: 'home_${profile.region}',
-        position: kRegionCoordinates[profile.region]!,
-        iconTintColor: _homeRegionColor,
-        caption: NOverlayCaption(text: profile.region),
-      ),
-      for (final region in _interestedRegions)
+      for (final region in _allRegions)
         NMarker(
-          id: 'interest_$region',
+          id: region == profile.region ? 'home_$region' : 'interest_$region',
           position: kRegionCoordinates[region]!,
-          iconTintColor: _interestedRegionColor,
-          caption: NOverlayCaption(text: region),
-        ),
+          iconTintColor: region == profile.region ? _homeRegionColor : _interestedRegionColor,
+          caption: NOverlayCaption(text: _captionFor(region)),
+        )..setOnTapListener((_) => _openPolicyListSheet(region)),
     };
   }
 
   Future<void> _onMapReady(NaverMapController controller) async {
     await controller.addOverlayAll(_buildMarkers());
     setState(() => _mapController = controller);
+    unawaited(_loadPolicyCounts());
   }
 
   Future<void> _refreshMarkers() async {
@@ -59,6 +91,19 @@ class _MainScreenState extends State<MainScreen> {
     if (controller == null) return;
     await controller.clearOverlays(type: NOverlayType.marker);
     await controller.addOverlayAll(_buildMarkers());
+  }
+
+  void _openPolicyListSheet(String region) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => PolicyListSheet(
+        region: region,
+        profile: profile,
+        policyApiService: _policyApi,
+      ),
+    );
   }
 
   Future<void> _openRegionPicker() async {
@@ -95,7 +140,8 @@ class _MainScreenState extends State<MainScreen> {
                   TossChipSelector(
                     label: '관심지역 (복수 선택 가능)',
                     options: kRegions,
-                    selected: updated,
+                    selected: {...updated, profile.region},
+                    disabled: {profile.region},
                     multiSelect: true,
                     onToggle: (region) => setSheetState(() {
                       if (updated.contains(region)) {
@@ -120,6 +166,7 @@ class _MainScreenState extends State<MainScreen> {
     setState(() => _interestedRegions = updated);
     widget.onInterestedRegionsChanged?.call(updated.toList());
     await _refreshMarkers();
+    unawaited(_loadPolicyCounts());
   }
 
   @override
