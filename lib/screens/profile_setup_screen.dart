@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/interests.dart';
 import '../constants/regions.dart';
 import '../models/user_profile.dart';
 import '../theme/toss_colors.dart';
@@ -33,6 +34,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   String? _enrollmentStatus;
   String? _region;
   final Set<String> _interestedRegions = {};
+  final Set<String> _interests = {};
 
   bool _showErrors = false;
 
@@ -111,6 +113,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       enrollmentStatus: _enrollmentStatus!,
       region: _region!,
       interestedRegions: _interestedRegions.toList(),
+      interests: _interests.toList(),
     );
 
     Navigator.of(context).pushReplacement(
@@ -201,6 +204,20 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     _interestedRegions.remove(value);
                   } else {
                     _interestedRegions.add(value);
+                  }
+                }),
+              ),
+              const SizedBox(height: 20),
+              TossChipSelector(
+                label: '관심사 (복수 선택 가능)',
+                options: kInterests,
+                selected: _interests,
+                multiSelect: true,
+                onToggle: (value) => setState(() {
+                  if (_interests.contains(value)) {
+                    _interests.remove(value);
+                  } else {
+                    _interests.add(value);
                   }
                 }),
               ),

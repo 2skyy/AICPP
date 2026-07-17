@@ -21,3 +21,6 @@ python-dotenv
 
 # 5. 기타
 requests
+
+# 6. LLM
+anthropic

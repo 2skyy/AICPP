@@ -1,10 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
-import '../models/policy_item.dart';
 import '../models/user_profile.dart';
-import '../services/policy_api_service.dart';
+import '../services/chat_api_service.dart';
 import '../theme/toss_colors.dart';
 import '../utils/chat_context.dart';
-import '../utils/keyword_extractor.dart';
 
 const _suggestedQuestions = [
   '내 지역 청년 주거지원이 궁금해요',
@@ -43,21 +43,29 @@ String _relativeTime(DateTime time) {
   return '${diff.inDays}일 전';
 }
 
-class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, required this.profile, this.policyApiService});
+/// Small floating chat window that overlays the current screen instead of
+/// navigating to a full page — the caller keeps whatever's behind it visible.
+class ChatPanel extends StatefulWidget {
+  const ChatPanel({
+    super.key,
+    required this.profile,
+    required this.onClose,
+    this.chatApiService,
+  });
 
   final UserProfile profile;
-  final PolicyApiService? policyApiService;
+  final VoidCallback onClose;
+  final ChatApiService? chatApiService;
 
   @override
-  State<ChatScreen> createState() => _ChatScreenState();
+  State<ChatPanel> createState() => _ChatPanelState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatPanelState extends State<ChatPanel> {
   final _controller = TextEditingController();
   final _messages = <_ChatMessage>[];
   final _history = <_ChatSession>[];
-  late final _policyApi = widget.policyApiService ?? PolicyApiService();
+  late final _chatApi = widget.chatApiService ?? ChatApiService();
 
   @override
   void dispose() {
@@ -107,25 +115,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     String replyText;
     try {
-      final keyword = extractTopicKeyword(question);
-      if (keyword != null) {
-        final result = await _policyApi.search(topic: keyword);
-        final openItems = result.items.where((item) => item.isCurrentlyOpen).toList();
-        replyText = openItems.isEmpty
-            ? '"$keyword" 관련 신청 가능한 정책을 찾지 못했어요.'
-            : '"$keyword" 관련 신청 가능한 정책 ${openItems.length}건이 있어요.\n${_formatResults(openItems)}';
-      } else if (!looksLikeQuestion(question)) {
-        replyText = '질문을 이해하지 못했어요. 주거, 취업, 창업, 교육, 복지 같은 키워드를 포함해서 다시 질문해주세요.';
-      } else {
-        final result = await _policyApi.search(name: widget.profile.region, size: 30);
-        final matchedItems = result.items
-            .where((item) => item.isCurrentlyOpen && item.matchesProfile(widget.profile))
-            .toList();
-        replyText = matchedItems.isEmpty
-            ? '조건에 맞는 정책을 찾지 못했어요. 주거, 취업, 창업, 교육, 복지 같은 키워드를 포함해서 다시 질문해보세요.'
-            : '${widget.profile.region}에서 내 조건에 맞는 정책 ${matchedItems.length}건이 있어요.\n${_formatResults(matchedItems)}';
-      }
-    } on PolicyApiException catch (e) {
+      replyText = await _chatApi.ask(question, widget.profile);
+    } on ChatApiException catch (e) {
       replyText = e.message;
     }
 
@@ -136,51 +127,120 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  String _formatResults(List<PolicyItem> items) {
-    return items
-        .asMap()
-        .entries
-        .map((entry) => '${entry.key + 1}. ${entry.value.name}')
-        .join('\n');
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: TossColors.background,
-        elevation: 0,
-        foregroundColor: TossColors.textPrimary,
-        title: const Text('정책 어시스턴트'),
-        actions: [
-          IconButton(
-            onPressed: _messages.isEmpty ? null : _startNewConversation,
-            icon: const Icon(Icons.add_comment_outlined),
-            tooltip: '새 대화',
-          ),
-          IconButton(
-            onPressed: _history.isEmpty ? null : _openHistory,
-            icon: const Icon(Icons.history),
-            tooltip: '대화 이력',
-          ),
-        ],
-      ),
-      body: SafeArea(
+    final screenSize = MediaQuery.of(context).size;
+    final width = math.min(340.0, screenSize.width - 32);
+    final height = math.min(480.0, screenSize.height * 0.65);
+
+    return Material(
+      elevation: 12,
+      color: TossColors.background,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
+        width: width,
+        height: height,
         child: Column(
           children: [
+            _PanelHeader(
+              hasMessages: _messages.isNotEmpty,
+              hasHistory: _history.isNotEmpty,
+              onNewConversation: _startNewConversation,
+              onOpenHistory: _openHistory,
+              onClose: widget.onClose,
+            ),
             Expanded(
               child: _messages.isEmpty
                   ? _SuggestedQuestions(onSelect: _send)
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _messages.length,
-                      itemBuilder: (context, index) => _ChatBubble(message: _messages[index]),
+                  : LayoutBuilder(
+                      builder: (context, constraints) => ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: _messages.length,
+                        itemBuilder: (context, index) => _ChatBubble(
+                          message: _messages[index],
+                          maxWidth: constraints.maxWidth * 0.85,
+                        ),
+                      ),
                     ),
             ),
             _ChatInputBar(controller: _controller, onSend: () => _send()),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PanelHeader extends StatelessWidget {
+  const _PanelHeader({
+    required this.hasMessages,
+    required this.hasHistory,
+    required this.onNewConversation,
+    required this.onOpenHistory,
+    required this.onClose,
+  });
+
+  final bool hasMessages;
+  final bool hasHistory;
+  final VoidCallback onNewConversation;
+  final VoidCallback onOpenHistory;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: TossColors.fieldFill, width: 1)),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              '정책 어시스턴트',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: TossColors.textPrimary,
+              ),
+            ),
+          ),
+          _HeaderIconButton(
+            onPressed: hasMessages ? onNewConversation : null,
+            icon: Icons.add_comment_outlined,
+            tooltip: '새 대화',
+          ),
+          _HeaderIconButton(
+            onPressed: hasHistory ? onOpenHistory : null,
+            icon: Icons.history,
+            tooltip: '대화 이력',
+          ),
+          _HeaderIconButton(onPressed: onClose, icon: Icons.close, tooltip: '닫기'),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({required this.onPressed, required this.icon, required this.tooltip});
+
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onPressed,
+      icon: Icon(icon),
+      iconSize: 18,
+      tooltip: tooltip,
+      color: TossColors.textPrimary,
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.all(4),
+      constraints: const BoxConstraints(),
     );
   }
 }
@@ -193,7 +253,7 @@ class _SuggestedQuestions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
@@ -201,18 +261,18 @@ class _SuggestedQuestions extends StatelessWidget {
           const Text(
             '어떤 정책이 궁금하신가요?',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 15,
               fontWeight: FontWeight.w700,
               color: TossColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: _suggestedQuestions
                 .map((question) => ActionChip(
-                      label: Text(question),
+                      label: Text(question, style: const TextStyle(fontSize: 12)),
                       backgroundColor: TossColors.fieldFill,
                       side: BorderSide.none,
                       onPressed: () => onSelect(question),
@@ -226,9 +286,10 @@ class _SuggestedQuestions extends StatelessWidget {
 }
 
 class _ChatBubble extends StatelessWidget {
-  const _ChatBubble({required this.message});
+  const _ChatBubble({required this.message, required this.maxWidth});
 
   final _ChatMessage message;
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -239,13 +300,13 @@ class _ChatBubble extends StatelessWidget {
     return Align(
       alignment: alignment,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        constraints: BoxConstraints(maxWidth: maxWidth),
         child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: bubbleColor,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -259,12 +320,12 @@ class _ChatBubble extends StatelessWidget {
                   ),
                   child: Text(
                     '컨텍스트: ${message.contextLabel}',
-                    style: const TextStyle(fontSize: 11, color: TossColors.textSecondary),
+                    style: const TextStyle(fontSize: 10, color: TossColors.textSecondary),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
               ],
-              Text(message.text, style: TextStyle(fontSize: 15, color: textColor)),
+              Text(message.text, style: TextStyle(fontSize: 13, color: textColor)),
             ],
           ),
         ),
@@ -282,20 +343,22 @@ class _ChatInputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       child: Row(
         children: [
           Expanded(
             child: TextField(
               controller: controller,
               onSubmitted: (_) => onSend(),
+              style: const TextStyle(fontSize: 13),
               decoration: InputDecoration(
                 hintText: '질문을 입력하세요',
+                hintStyle: const TextStyle(fontSize: 13),
                 filled: true,
                 fillColor: TossColors.fieldFill,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -304,8 +367,10 @@ class _ChatInputBar extends StatelessWidget {
           const SizedBox(width: 8),
           IconButton(
             onPressed: onSend,
-            icon: const Icon(Icons.arrow_upward),
+            icon: const Icon(Icons.arrow_upward, size: 18),
             color: Colors.white,
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(),
             style: IconButton.styleFrom(
               backgroundColor: TossColors.primary,
               shape: const CircleBorder(),

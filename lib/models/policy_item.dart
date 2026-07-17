@@ -2,6 +2,33 @@ import '../models/user_profile.dart';
 
 DateTime _dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
 
+final _amountPattern = RegExp(r'(\d[\d,]*)(?:\.(\d+))?\s*(억|만)?\s*원');
+
+/// Best-effort won amount parsed out of free-text support content (e.g.
+/// "월 20만원 지원", "최대 300만원", "1,000,000원"). Takes the largest amount
+/// mentioned in the text, since these descriptions often list several
+/// figures (a monthly amount and a total cap) and the total is the more
+/// useful one for comparing policies. Returns null when no amount is found.
+int? _parseSupportAmount(String? text) {
+  if (text == null) return null;
+  int? maxAmount;
+  for (final match in _amountPattern.allMatches(text)) {
+    final integerPart = match.group(1)!.replaceAll(',', '');
+    final decimalPart = match.group(2);
+    final unit = match.group(3);
+    final value = double.tryParse(decimalPart == null ? integerPart : '$integerPart.$decimalPart');
+    if (value == null) continue;
+    final multiplier = switch (unit) {
+      '억' => 100000000,
+      '만' => 10000,
+      _ => 1,
+    };
+    final amount = (value * multiplier).round();
+    if (maxAmount == null || amount > maxAmount) maxAmount = amount;
+  }
+  return maxAmount;
+}
+
 /// A single youth policy result from the 온통청년 API.
 ///
 /// Field names below were verified against a live API response (not just
@@ -41,15 +68,20 @@ class PolicyItem {
   final DateTime? applyStart;
   final DateTime? deadline;
 
-  /// Soft eligibility check used for the map's "내게 맞는 것만" filter and the
-  /// report tab's matching-rate gauge. Falls back to "matches" when the
-  /// policy or the user's age is unknown, since we can't rule it out.
+  /// Soft eligibility check used by the report tab's matching-rate gauge and
+  /// category donut. Falls back to "matches" when the policy or the user's
+  /// age is unknown, since we can't rule it out.
   bool matchesProfile(UserProfile profile) {
     if (profile.age <= 0) return true;
     if (minAge != null && profile.age < minAge!) return false;
     if (maxAge != null && profile.age > maxAge!) return false;
     return true;
   }
+
+  /// Best-effort won amount parsed from [supportContent], used by the map's
+  /// "지원금액 많은 순" sort. Null when no amount could be parsed out of the
+  /// free-text description.
+  int? get supportAmount => _parseSupportAmount(supportContent);
 
   /// Whether today falls inside the policy's application window. Policies
   /// with no parseable dates (e.g. "상시") are treated as always open.

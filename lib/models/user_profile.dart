@@ -11,6 +11,7 @@ class UserProfile {
     required this.enrollmentStatus,
     required this.region,
     required this.interestedRegions,
+    this.interests = const [],
   });
 
   final String name;
@@ -22,6 +23,7 @@ class UserProfile {
   final String enrollmentStatus;
   final String region;
   final List<String> interestedRegions;
+  final List<String> interests;
 
   int get age => birthDate == null ? 0 : calculateAge(birthDate!);
 
@@ -35,6 +37,7 @@ class UserProfile {
     String? enrollmentStatus,
     String? region,
     List<String>? interestedRegions,
+    List<String>? interests,
   }) {
     return UserProfile(
       name: name ?? this.name,
@@ -46,6 +49,7 @@ class UserProfile {
       enrollmentStatus: enrollmentStatus ?? this.enrollmentStatus,
       region: region ?? this.region,
       interestedRegions: interestedRegions ?? this.interestedRegions,
+      interests: interests ?? this.interests,
     );
   }
 }

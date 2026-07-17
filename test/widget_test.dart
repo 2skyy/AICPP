@@ -8,17 +8,23 @@ import 'package:http/testing.dart';
 import 'package:aicpp/main.dart';
 import 'package:aicpp/models/policy_item.dart';
 import 'package:aicpp/models/user_profile.dart';
-import 'package:aicpp/screens/chat_screen.dart';
 import 'package:aicpp/screens/home_shell.dart';
 import 'package:aicpp/screens/main_screen.dart';
 import 'package:aicpp/screens/policy_detail_screen.dart';
 import 'package:aicpp/screens/profile_setup_screen.dart';
 import 'package:aicpp/screens/report_screen.dart';
+import 'package:aicpp/services/chat_api_service.dart';
+import 'package:aicpp/services/news_api_service.dart';
 import 'package:aicpp/services/policy_api_service.dart';
+import 'package:aicpp/widgets/chat_panel.dart';
 import 'package:aicpp/widgets/policy_list_sheet.dart';
 import 'package:aicpp/widgets/toss_chip_selector.dart';
 
-UserProfile sampleProfile({List<String> interestedRegions = const []}) => UserProfile(
+UserProfile sampleProfile({
+  List<String> interestedRegions = const [],
+  List<String> interests = const [],
+}) =>
+    UserProfile(
       name: '홍길동',
       email: 'test@example.com',
       birthDate: DateTime(2000, 1, 1),
@@ -28,6 +34,7 @@ UserProfile sampleProfile({List<String> interestedRegions = const []}) => UserPr
       enrollmentStatus: '재학',
       region: '서울특별시',
       interestedRegions: interestedRegions,
+      interests: interests,
     );
 
 void main() {
@@ -202,7 +209,7 @@ void main() {
     expect(find.text('제주특별자치도'), findsOneWidget);
   });
 
-  testWidgets('Bottom navigation switches between map, chat, and profile tabs',
+  testWidgets('Bottom navigation switches between map, report, and profile tabs',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(400, 1400);
     tester.view.devicePixelRatio = 1.0;
@@ -227,10 +234,6 @@ void main() {
 
     expect(find.textContaining('환영해요'), findsOneWidget);
 
-    await tester.tap(find.text('채팅'));
-    await tester.pumpAndSettle();
-    expect(find.text('정책 어시스턴트'), findsOneWidget);
-
     await tester.tap(find.text('프로필'));
     await tester.pumpAndSettle();
     expect(find.text('홍길동'), findsOneWidget);
@@ -245,6 +248,84 @@ void main() {
         of: find.byType(AlertDialog), matching: find.text('로그아웃')));
     await tester.pumpAndSettle();
     expect(find.text('안녕하세요!\n이메일로 로그인해주세요'), findsOneWidget);
+
+    // The floating chat button lives inside HomeShell's nested Navigator
+    // scope — logging out must fully replace HomeShell, not just push the
+    // login screen underneath it.
+    expect(find.byIcon(Icons.chat_bubble_outline), findsNothing);
+  });
+
+  testWidgets(
+      'Floating chat button opens a panel over the current screen and can be closed',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(MaterialApp(home: HomeShell(profile: sampleProfile())));
+
+    // Chat is not a bottom-nav tab anymore; the map tab stays visible.
+    expect(find.text('채팅'), findsNothing);
+    expect(find.textContaining('환영해요'), findsOneWidget);
+    expect(find.text('정책 어시스턴트'), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+    await tester.pumpAndSettle();
+
+    // The panel is open, but the map screen behind it is still there.
+    expect(find.text('정책 어시스턴트'), findsOneWidget);
+    expect(find.textContaining('환영해요'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('닫기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('정책 어시스턴트'), findsNothing);
+  });
+
+  testWidgets(
+      'Floating chat button persists on a pushed policy detail page',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'result': {
+            'pagging': {'totCount': 1},
+            'youthPolicyList': [
+              {'plcyNm': '청년월세지원', 'aplyYmd': '20260101 ~ 20261231'},
+            ],
+          },
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      home: HomeShell(
+        profile: sampleProfile(interestedRegions: const ['부산광역시']),
+        reportPolicyApiService: PolicyApiService(client: mockClient),
+      ),
+    ));
+
+    await tester.tap(find.text('리포트'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('청년월세지원'));
+    await tester.pumpAndSettle();
+    expect(find.text('정책 상세'), findsOneWidget);
+
+    // The floating button survives the push onto the detail page — it's no
+    // longer covered by it the way a plain Navigator.push would.
+    expect(find.byType(FloatingActionButton), findsOneWidget);
+
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    expect(find.text('정책 어시스턴트'), findsOneWidget);
   });
 
   testWidgets('Cancelling the logout dialog stays on the profile tab',
@@ -413,17 +494,20 @@ void main() {
   });
 
   testWidgets(
-      'Chat screen shows matched policies returned by the policy API',
+      'Chat panel shows the answer returned by the chat API',
       (WidgetTester tester) async {
     final mockClient = MockClient((request) async {
+      expect(request.url.path, '/api/chat/ask');
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      expect(body['question'], '내 지역 청년 주거지원이 궁금해요');
+      expect((body['profile'] as Map)['region'], '서울특별시');
       return http.Response(
         jsonEncode({
-          'result': {
-            'youthPolicyList': [
-              {'plcyNm': '청년월세지원'},
-              {'plcyNm': '역세권청년주택'},
-            ],
-          },
+          'answer': '청년월세지원, 역세권청년주택을 신청할 수 있어요.',
+          'policies': [
+            {'name': '청년월세지원'},
+            {'name': '역세권청년주택'},
+          ],
         }),
         200,
         headers: {'content-type': 'application/json'},
@@ -431,91 +515,36 @@ void main() {
     });
 
     await tester.pumpWidget(MaterialApp(
-      home: ChatScreen(
-        profile: sampleProfile(),
-        policyApiService: PolicyApiService(client: mockClient),
+      home: Scaffold(
+        body: ChatPanel(
+          profile: sampleProfile(),
+          onClose: () {},
+          chatApiService: ChatApiService(client: mockClient),
+        ),
       ),
     ));
 
     await tester.tap(find.text('내 지역 청년 주거지원이 궁금해요'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('"주거" 관련 신청 가능한 정책 2건이 있어요'), findsOneWidget);
-    expect(find.textContaining('청년월세지원'), findsOneWidget);
-    expect(find.textContaining('역세권청년주택'), findsOneWidget);
+    expect(find.textContaining('청년월세지원, 역세권청년주택을 신청할 수 있어요'), findsOneWidget);
     expect(find.textContaining('컨텍스트: 서울특별시'), findsOneWidget);
   });
 
   testWidgets(
-      'Chat rejects meaningless input without calling the policy API',
-      (WidgetTester tester) async {
-    var callCount = 0;
-    final mockClient = MockClient((request) async {
-      callCount++;
-      throw Exception('should not be called');
-    });
-
-    await tester.pumpWidget(MaterialApp(
-      home: ChatScreen(
-        profile: sampleProfile(),
-        policyApiService: PolicyApiService(client: mockClient),
-      ),
-    ));
-
-    await tester.enterText(find.byType(TextField), '.');
-    await tester.tap(find.byIcon(Icons.arrow_upward));
-    await tester.pumpAndSettle();
-
-    expect(callCount, 0);
-    expect(
-        find.text('질문을 이해하지 못했어요. 주거, 취업, 창업, 교육, 복지 같은 키워드를 포함해서 다시 질문해주세요.'),
-        findsOneWidget);
-  });
-
-  testWidgets(
-      'Chat falls back to profile-matched policies when no known keyword is found',
-      (WidgetTester tester) async {
-    final mockClient = MockClient((request) async {
-      expect(request.url.queryParameters['name'], '서울특별시');
-      return http.Response(
-        jsonEncode({
-          'result': {
-            'youthPolicyList': [
-              {'plcyNm': '청년 종합지원'},
-            ],
-          },
-        }),
-        200,
-        headers: {'content-type': 'application/json'},
-      );
-    });
-
-    await tester.pumpWidget(MaterialApp(
-      home: ChatScreen(
-        profile: sampleProfile(),
-        policyApiService: PolicyApiService(client: mockClient),
-      ),
-    ));
-
-    await tester.enterText(find.byType(TextField), '나이 조건에 맞는 정책 알려줘');
-    await tester.tap(find.byIcon(Icons.arrow_upward));
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('서울특별시에서 내 조건에 맞는 정책 1건이 있어요'), findsOneWidget);
-    expect(find.textContaining('청년 종합지원'), findsOneWidget);
-  });
-
-  testWidgets(
-      'Chat screen shows a friendly error when the policy server is unreachable',
+      'Chat panel shows a friendly error when the policy server is unreachable',
       (WidgetTester tester) async {
     final mockClient = MockClient((request) async {
       throw Exception('Connection refused');
     });
 
     await tester.pumpWidget(MaterialApp(
-      home: ChatScreen(
-        profile: sampleProfile(),
-        policyApiService: PolicyApiService(client: mockClient),
+      home: Scaffold(
+        body: ChatPanel(
+          profile: sampleProfile(),
+          onClose: () {},
+          chatApiService: ChatApiService(client: mockClient),
+        ),
       ),
     ));
 
@@ -525,16 +554,15 @@ void main() {
     expect(find.text('정책 서버에 연결할 수 없어요. 백엔드가 실행 중인지 확인해주세요.'), findsOneWidget);
   });
 
-  testWidgets('Chat starts a new conversation and restores it from history',
+  testWidgets('Chat panel starts a new conversation and restores it from history',
       (WidgetTester tester) async {
     final mockClient = MockClient((request) async {
       return http.Response(
         jsonEncode({
-          'result': {
-            'youthPolicyList': [
-              {'plcyNm': '청년월세지원'},
-            ],
-          },
+          'answer': '청년월세지원을 신청할 수 있어요.',
+          'policies': [
+            {'name': '청년월세지원'},
+          ],
         }),
         200,
         headers: {'content-type': 'application/json'},
@@ -542,9 +570,12 @@ void main() {
     });
 
     await tester.pumpWidget(MaterialApp(
-      home: ChatScreen(
-        profile: sampleProfile(),
-        policyApiService: PolicyApiService(client: mockClient),
+      home: Scaffold(
+        body: ChatPanel(
+          profile: sampleProfile(),
+          onClose: () {},
+          chatApiService: ChatApiService(client: mockClient),
+        ),
       ),
     ));
 
@@ -610,6 +641,23 @@ void main() {
     test('parses deadline from a "YYYYMMDD ~ YYYYMMDD" apply period', () {
       final item = PolicyItem.fromJson({'plcyNm': '테스트 정책', 'aplyYmd': '20260707 ~ 20260731'});
       expect(item.deadline, DateTime(2026, 7, 31));
+    });
+
+    test('supportAmount parses 만원/억원 units from free-text support content', () {
+      expect(PolicyItem.fromJson({'plcySprtCn': '월 20만원 지원'}).supportAmount, 200000);
+      expect(PolicyItem.fromJson({'plcySprtCn': '최대 300만원 지원'}).supportAmount, 3000000);
+      expect(PolicyItem.fromJson({'plcySprtCn': '보증금 1억원 지원'}).supportAmount, 100000000);
+      expect(PolicyItem.fromJson({'plcySprtCn': '1,000,000원 지급'}).supportAmount, 1000000);
+    });
+
+    test('supportAmount takes the largest figure when several are mentioned', () {
+      final item = PolicyItem.fromJson({'plcySprtCn': '월 20만원씩 최대 12개월(240만원)'});
+      expect(item.supportAmount, 2400000);
+    });
+
+    test('supportAmount is null when the text has no parseable amount', () {
+      expect(PolicyItem.fromJson({'plcySprtCn': '임대주택 제공'}).supportAmount, isNull);
+      expect(const PolicyItem(name: '이름만 있는 정책').supportAmount, isNull);
     });
 
     test('reads totCount from the pagination envelope', () {
@@ -703,7 +751,6 @@ void main() {
       home: Scaffold(
         body: PolicyListSheet(
           region: '서울특별시',
-          profile: sampleProfile(),
           policyApiService: PolicyApiService(client: mockClient),
         ),
       ),
@@ -720,6 +767,47 @@ void main() {
     expect(find.text('월세를 지원합니다'), findsOneWidget);
   });
 
+  testWidgets('Policy list sheet sorts by support amount when that chip is selected',
+      (WidgetTester tester) async {
+    final mockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'result': {
+            'pagging': {'totCount': 2},
+            'youthPolicyList': [
+              {'plcyNm': '소액 지원금', 'plcySprtCn': '월 10만원 지원'},
+              {'plcyNm': '고액 지원금', 'plcySprtCn': '최대 500만원 지원'},
+            ],
+          },
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: PolicyListSheet(
+          region: '서울특별시',
+          policyApiService: PolicyApiService(client: mockClient),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('지원금액 많은 순'));
+    await tester.pumpAndSettle();
+
+    final cardTitles = tester
+        .widgetList<Text>(find.descendant(
+          of: find.byType(ListView),
+          matching: find.textContaining('지원금'),
+        ))
+        .map((text) => text.data)
+        .toList();
+    expect(cardTitles, ['고액 지원금', '소액 지원금']);
+  });
+
   testWidgets('Policy list sheet shows the connection error message on failure',
       (WidgetTester tester) async {
     final mockClient = MockClient((request) async {
@@ -730,7 +818,6 @@ void main() {
       home: Scaffold(
         body: PolicyListSheet(
           region: '서울특별시',
-          profile: sampleProfile(),
           policyApiService: PolicyApiService(client: mockClient),
         ),
       ),
@@ -822,9 +909,85 @@ void main() {
     expect(find.text('청년월세지원'), findsOneWidget);
     expect(find.textContaining('D-'), findsOneWidget);
 
+    // The category donut is built only from policies the user actually
+    // qualifies for (주거, age-eligible) — not the age-ineligible one (복지).
+    expect(find.text('주거'), findsOneWidget);
+    expect(find.text('복지'), findsNothing);
+
     await tester.tap(find.text('청년월세지원'));
     await tester.pumpAndSettle();
     expect(find.text('정책 상세'), findsOneWidget);
+  });
+
+  testWidgets('Report tab shows recommended news when interests are set',
+      (WidgetTester tester) async {
+    final policyMockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'result': {'pagging': {'totCount': 0}, 'youthPolicyList': []},
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final newsMockClient = MockClient((request) async {
+      expect(request.url.path, '/api/news/recommendations');
+      expect(request.url.queryParametersAll['interests'], ['주거']);
+      return http.Response(
+        jsonEncode({
+          'articles': [
+            {
+              'title': '청년 월세 지원 확대',
+              'url': 'https://news.example.com/1',
+              'source': '뉴스원',
+              'reason': '관심사인 주거와 관련된 기사예요.',
+            },
+          ],
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      home: ReportScreen(
+        profile: sampleProfile(interestedRegions: const ['부산광역시'], interests: const ['주거']),
+        onProfileUpdated: (_) {},
+        policyApiService: PolicyApiService(client: policyMockClient),
+        newsApiService: NewsApiService(client: newsMockClient),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('추천 뉴스'), findsOneWidget);
+    expect(find.text('청년 월세 지원 확대'), findsOneWidget);
+    expect(find.text('관심사인 주거와 관련된 기사예요.'), findsOneWidget);
+    expect(find.text('뉴스원'), findsOneWidget);
+  });
+
+  testWidgets('Report tab prompts to set interests when none are selected',
+      (WidgetTester tester) async {
+    final policyMockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'result': {'pagging': {'totCount': 0}, 'youthPolicyList': []},
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      home: ReportScreen(
+        profile: sampleProfile(interestedRegions: const ['부산광역시']),
+        onProfileUpdated: (_) {},
+        policyApiService: PolicyApiService(client: policyMockClient),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('관심사를 설정하면 맞춤 뉴스를 볼 수 있어요'), findsOneWidget);
+    expect(find.text('관심사 설정하기'), findsOneWidget);
   });
 
   testWidgets('GPA field blocks values above 4.5 and rounds to two decimals',

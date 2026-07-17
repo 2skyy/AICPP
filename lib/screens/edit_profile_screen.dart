@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/interests.dart';
 import '../constants/regions.dart';
 import '../models/user_profile.dart';
 import '../theme/toss_colors.dart';
@@ -34,6 +35,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late String? _enrollmentStatus =
       widget.profile.enrollmentStatus.isEmpty ? null : widget.profile.enrollmentStatus;
   late String? _region = widget.profile.region.isEmpty ? null : widget.profile.region;
+  late final Set<String> _interests = widget.profile.interests.toSet();
 
   bool _showErrors = false;
 
@@ -126,6 +128,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       gpa: double.parse(_gpaController.text),
       enrollmentStatus: _enrollmentStatus,
       region: _region,
+      interests: _interests.toList(),
     );
 
     Navigator.of(context).pop(updated);
@@ -208,6 +211,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 selected: _region == null ? {} : {_region!},
                 errorText: _regionError,
                 onToggle: (value) => setState(() => _region = value),
+              ),
+              const SizedBox(height: 20),
+              TossChipSelector(
+                label: '관심사 (복수 선택 가능)',
+                options: kInterests,
+                selected: _interests,
+                multiSelect: true,
+                onToggle: (value) => setState(() {
+                  if (_interests.contains(value)) {
+                    _interests.remove(value);
+                  } else {
+                    _interests.add(value);
+                  }
+                }),
               ),
               const SizedBox(height: 40),
               TossButton(label: '저장', onPressed: _submit),

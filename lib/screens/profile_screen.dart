@@ -35,7 +35,10 @@ class ProfileScreen extends StatelessWidget {
     );
     if (confirmed != true || !context.mounted) return;
 
-    Navigator.of(context).pushAndRemoveUntil(
+    // rootNavigator: true — HomeShell wraps its tabs in a nested Navigator
+    // (so the floating chat button survives pushes like policy detail).
+    // Logging out needs to replace the whole app, including that shell.
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
       (route) => false,
     );

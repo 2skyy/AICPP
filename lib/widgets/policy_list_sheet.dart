@@ -1,22 +1,19 @@
 import 'package:flutter/material.dart';
 import '../models/policy_item.dart';
-import '../models/user_profile.dart';
 import '../screens/policy_detail_screen.dart';
 import '../services/policy_api_service.dart';
 import '../theme/toss_colors.dart';
 
-enum _SortMode { deadline, latest, matching }
+enum _SortMode { deadline, latest, amount }
 
 class PolicyListSheet extends StatefulWidget {
   const PolicyListSheet({
     super.key,
     required this.region,
-    required this.profile,
     this.policyApiService,
   });
 
   final String region;
-  final UserProfile profile;
   final PolicyApiService? policyApiService;
 
   @override
@@ -69,8 +66,16 @@ class _PolicyListSheetState extends State<PolicyListSheet> {
           return b.registeredAt!.compareTo(a.registeredAt!);
         });
         return items;
-      case _SortMode.matching:
-        return items.where((item) => item.matchesProfile(widget.profile)).toList();
+      case _SortMode.amount:
+        items.sort((a, b) {
+          final amountA = a.supportAmount;
+          final amountB = b.supportAmount;
+          if (amountA == null && amountB == null) return 0;
+          if (amountA == null) return 1;
+          if (amountB == null) return -1;
+          return amountB.compareTo(amountA);
+        });
+        return items;
     }
   }
 
@@ -122,9 +127,9 @@ class _PolicyListSheetState extends State<PolicyListSheet> {
                       onTap: () => setState(() => _sortMode = _SortMode.latest),
                     ),
                     _SortChip(
-                      label: '내게 맞는 것만',
-                      selected: _sortMode == _SortMode.matching,
-                      onTap: () => setState(() => _sortMode = _SortMode.matching),
+                      label: '지원금액 많은 순',
+                      selected: _sortMode == _SortMode.amount,
+                      onTap: () => setState(() => _sortMode = _SortMode.amount),
                     ),
                   ],
                 ),

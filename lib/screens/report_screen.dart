@@ -1,9 +1,12 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/policy_item.dart';
 import '../models/user_profile.dart';
+import '../services/news_api_service.dart';
 import '../services/policy_api_service.dart';
 import '../theme/toss_colors.dart';
+import 'edit_profile_screen.dart';
 import 'interested_region_screen.dart';
 import 'policy_detail_screen.dart';
 
@@ -22,11 +25,13 @@ class ReportScreen extends StatefulWidget {
     required this.profile,
     required this.onProfileUpdated,
     this.policyApiService,
+    this.newsApiService,
   });
 
   final UserProfile profile;
   final ValueChanged<UserProfile> onProfileUpdated;
   final PolicyApiService? policyApiService;
+  final NewsApiService? newsApiService;
 
   @override
   State<ReportScreen> createState() => _ReportScreenState();
@@ -34,13 +39,17 @@ class ReportScreen extends StatefulWidget {
 
 class _ReportScreenState extends State<ReportScreen> {
   late final _policyApi = widget.policyApiService ?? PolicyApiService();
+  late final _newsApi = widget.newsApiService ?? NewsApiService();
   List<PolicyItem>? _items;
   String? _error;
+  List<NewsArticle>? _newsArticles;
+  String? _newsError;
 
   @override
   void initState() {
     super.initState();
     if (widget.profile.interestedRegions.isNotEmpty) _load();
+    _loadNews();
   }
 
   @override
@@ -49,6 +58,10 @@ class _ReportScreenState extends State<ReportScreen> {
     final hadNone = oldWidget.profile.interestedRegions.isEmpty;
     final hasNow = widget.profile.interestedRegions.isNotEmpty;
     if (hadNone && hasNow) _load();
+
+    final hadNoInterests = oldWidget.profile.interests.isEmpty;
+    final hasInterestsNow = widget.profile.interests.isNotEmpty;
+    if (hadNoInterests && hasInterestsNow) _loadNews();
   }
 
   Set<String> get _regions => {widget.profile.region, ...widget.profile.interestedRegions};
@@ -89,6 +102,35 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
+  Future<void> _loadNews() async {
+    if (widget.profile.interests.isEmpty) {
+      setState(() {
+        _newsArticles = const [];
+        _newsError = null;
+      });
+      return;
+    }
+    setState(() {
+      _newsArticles = null;
+      _newsError = null;
+    });
+    try {
+      final articles = await _newsApi.fetchRecommendations(widget.profile.interests);
+      if (!mounted) return;
+      setState(() => _newsArticles = articles);
+    } on NewsApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _newsError = e.message);
+    }
+  }
+
+  Future<void> _editInterests() async {
+    final updated = await Navigator.of(context).push<UserProfile>(
+      MaterialPageRoute(builder: (_) => EditProfileScreen(profile: widget.profile)),
+    );
+    if (updated != null) widget.onProfileUpdated(updated);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,11 +162,12 @@ class _ReportScreenState extends State<ReportScreen> {
     }
 
     final items = _items!;
-    final matching = items.where((item) => item.matchesProfile(widget.profile)).length;
+    final matchedItems = items.where((item) => item.matchesProfile(widget.profile)).toList();
+    final matching = matchedItems.length;
     final total = items.length;
 
     final categoryCounts = <String, int>{};
-    for (final item in items) {
+    for (final item in matchedItems) {
       final category = item.category ?? '기타';
       categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
     }
@@ -187,8 +230,65 @@ class _ReportScreenState extends State<ReportScreen> {
                     MaterialPageRoute(builder: (_) => PolicyDetailScreen(policy: item)),
                   ),
                 )),
+          const SizedBox(height: 32),
+          const Text(
+            '추천 뉴스',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: TossColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildNewsSection(),
         ],
       ),
+    );
+  }
+
+  Widget _buildNewsSection() {
+    if (widget.profile.interests.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '관심사를 설정하면 맞춤 뉴스를 볼 수 있어요',
+              style: TextStyle(fontSize: 14, color: TossColors.textSecondary),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: _editInterests,
+              child: const Text(
+                '관심사 설정하기',
+                style: TextStyle(color: TossColors.primary, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_newsError != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text(_newsError!, style: const TextStyle(fontSize: 14, color: TossColors.textSecondary)),
+      );
+    }
+    if (_newsArticles == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_newsArticles!.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Text('추천할 뉴스를 찾지 못했어요', style: TextStyle(fontSize: 14, color: TossColors.textSecondary)),
+      );
+    }
+    return Column(
+      children: _newsArticles!.map((article) => _NewsCard(article: article)).toList(),
     );
   }
 }
@@ -381,6 +481,64 @@ class _DeadlineTile extends StatelessWidget {
                   color: TossColors.textPrimary,
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NewsCard extends StatelessWidget {
+  const _NewsCard({required this.article});
+
+  final NewsArticle article;
+
+  Future<void> _open(BuildContext context) async {
+    final uri = Uri.tryParse(article.url);
+    if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('뉴스 페이지를 열 수 없어요.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => _open(context),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: TossColors.fieldFill,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              article.title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: TossColors.textPrimary,
+              ),
+            ),
+            if (article.reason != null && article.reason!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                article.reason!,
+                style: const TextStyle(fontSize: 12, color: TossColors.textSecondary),
+              ),
+            ],
+            const SizedBox(height: 6),
+            Text(
+              article.source,
+              style: const TextStyle(fontSize: 11, color: TossColors.textSecondary),
             ),
           ],
         ),

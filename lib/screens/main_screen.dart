@@ -100,7 +100,6 @@ class _MainScreenState extends State<MainScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => PolicyListSheet(
         region: region,
-        profile: profile,
         policyApiService: _policyApi,
       ),
     );
@@ -230,7 +229,7 @@ class _MainScreenState extends State<MainScreen> {
                             ),
                             Positioned(
                               right: 12,
-                              bottom: 12,
+                              top: 12,
                               child: NaverMapZoomControlWidget(
                                 mapController: _mapController,
                               ),
