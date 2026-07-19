@@ -6,15 +6,30 @@ from pydantic import BaseModel
 from app.api.clients.ontong_policy import OntongPolicyClient
 from app.services.chat_service import ChatService
 from app.services.ontong_policy_service import OntongPolicyService
+from app.services.policy_amount_service import get_shared_policy_amount_service
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+
+class ScrappedPolicyIn(BaseModel):
+    name: str
+    organization: str | None = None
+    period: str | None = None
+    description: str | None = None
+    support_content: str | None = None
+    apply_method: str | None = None
 
 
 class ProfileIn(BaseModel):
     region: str | None = None
     enrollment_status: str | None = None
     age: int | None = None
+    gender: str | None = None
+    school: str | None = None
+    gpa: float | None = None
+    income_percent: int | None = None
     interested_regions: list[str] | None = None
+    scrapped_policies: list[ScrappedPolicyIn] | None = None
 
 
 class ChatRequest(BaseModel):
@@ -23,7 +38,10 @@ class ChatRequest(BaseModel):
 
 
 def get_chat_service() -> ChatService:
-    return ChatService(OntongPolicyService(OntongPolicyClient()))
+    policy_service = OntongPolicyService(
+        OntongPolicyClient(), amount_service=get_shared_policy_amount_service()
+    )
+    return ChatService(policy_service)
 
 
 @router.post("/ask")

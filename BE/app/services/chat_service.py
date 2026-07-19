@@ -4,6 +4,7 @@ from typing import Any
 from anthropic import Anthropic
 
 from app.services.keyword_extractor import extract_topic_keyword
+from app.services.markdown_utils import strip_markdown
 from app.services.ontong_policy_service import OntongPolicyService
 
 DEFAULT_MODEL = "claude-sonnet-5"
@@ -71,7 +72,7 @@ class ChatService:
         if keyword:
             raw = self.policy_service.search(topic=keyword, size=10)
         elif region:
-            raw = self.policy_service.search(name=region, size=10)
+            raw = self.policy_service.search(region=region, size=10)
         else:
             return []
         today = date.today()
@@ -83,26 +84,41 @@ class ChatService:
         system_prompt = self._build_system_prompt(profile, items)
         message = self.client.messages.create(
             model=self.model,
-            max_tokens=800,
+            max_tokens=1500,
             system=system_prompt,
+            # 정책 목록에서 근거를 찾아 답하는 단순 조회형 작업이라 확장 사고(thinking)가
+            # 필요 없다. 꺼두면 응답이 눈에 띄게 빨라진다(측정상 약 25~30% 단축).
+            thinking={"type": "disabled"},
             messages=[{"role": "user", "content": question}],
         )
-        return "".join(
+        text = "".join(
             block.text for block in message.content if getattr(block, "type", None) == "text"
         )
+        return strip_markdown(text)
 
     @staticmethod
     def _build_system_prompt(profile: dict[str, Any], items: list[dict[str, Any]]) -> str:
         age = profile.get("age")
+        gpa = profile.get("gpa")
+        income_percent = profile.get("income_percent")
+        interested_regions = profile.get("interested_regions") or []
         lines = [
-            "너는 청년 정책 안내 어시스턴트야. 아래 [정책 목록]에 있는 정책만 근거로 답변해.",
+            "너는 청년 정책 안내 어시스턴트야. 아래 [정책 목록]과 [스크랩한 정책]에 있는 "
+            "정책만 근거로 답변해.",
             "목록에 없는 내용은 추측하지 말고, 조건에 맞는 정책이 없으면 없다고 솔직하게 말해.",
             "답변은 한국어로, 친근하고 간결하게 작성해.",
+            "마크다운 문법(#, *, **, `, - 등 특수기호)은 쓰지 마. 강조하고 싶으면 "
+            "그냥 문장으로 표현하고, 목록이 필요하면 숫자와 줄바꿈만 써.",
             "",
             "[사용자 정보]",
             f"- 지역: {profile.get('region') or '미상'}",
+            f"- 관심지역: {', '.join(interested_regions) if interested_regions else '없음'}",
             f"- 재학상태: {profile.get('enrollment_status') or '미상'}",
             f"- 나이: {f'{age}세' if age else '미상'}",
+            f"- 성별: {profile.get('gender') or '미상'}",
+            f"- 학교: {profile.get('school') or '미상'}",
+            f"- 학점: {f'{gpa}' if gpa else '미상'}",
+            f"- 소득분위: {f'기준중위소득 약 {income_percent}%' if income_percent else '미상'}",
             "",
             "[정책 목록]",
         ]
@@ -121,6 +137,25 @@ class ChatService:
                     lines.append(f"   지원내용: {item['plcySprtCn']}")
                 if item.get("plcyAplyMthdCn"):
                     lines.append(f"   신청방법: {item['plcyAplyMthdCn']}")
+
+        scrapped = profile.get("scrapped_policies") or []
+        lines.append("")
+        lines.append("[스크랩한 정책]")
+        if not scrapped:
+            lines.append("(스크랩한 정책 없음)")
+        else:
+            for i, policy in enumerate(scrapped, start=1):
+                lines.append(
+                    f"{i}. {policy.get('name', '이름 미상')} "
+                    f"(지원기관: {policy.get('organization') or '미상'}, "
+                    f"신청기간: {policy.get('period') or '상시'})"
+                )
+                if policy.get("description"):
+                    lines.append(f"   설명: {policy['description']}")
+                if policy.get("support_content"):
+                    lines.append(f"   지원내용: {policy['support_content']}")
+                if policy.get("apply_method"):
+                    lines.append(f"   신청방법: {policy['apply_method']}")
         return "\n".join(lines)
 
 

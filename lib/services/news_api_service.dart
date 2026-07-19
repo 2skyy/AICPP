@@ -35,12 +35,19 @@ class NewsApiService {
   final http.Client _client;
 
   /// Fetches Claude-curated news recommendations for [interests]. Returns an
-  /// empty list without calling the backend if there are no interests set.
-  Future<List<NewsArticle>> fetchRecommendations(List<String> interests) async {
-    if (interests.isEmpty) return const [];
+  /// empty list without calling the backend if there are no interests set or
+  /// [count] is 0 (e.g. there are no matched policies to pair news with).
+  Future<List<NewsArticle>> fetchRecommendations(
+    List<String> interests, {
+    int? count,
+  }) async {
+    if (interests.isEmpty || count == 0) return const [];
 
     final uri = Uri.parse('$policyApiBaseUrl/api/news/recommendations').replace(
-      queryParameters: {'interests': interests},
+      queryParameters: {
+        'interests': interests,
+        if (count != null) 'count': '$count',
+      },
     );
 
     http.Response response;

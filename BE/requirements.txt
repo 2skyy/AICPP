@@ -4,8 +4,8 @@ fastapi
 uvicorn[standard]
 
 # 2. 데이터베이스 및 ORM2
-# sqlalchemy
-# psycopg2-binary
+sqlalchemy
+psycopg[binary]
 # pgvector
 # alembic
 # pydantic-settings

@@ -4,6 +4,7 @@ import '../theme/toss_colors.dart';
 import 'edit_profile_screen.dart';
 import 'interested_region_screen.dart';
 import 'login_screen.dart';
+import 'scrapped_policies_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({
@@ -61,6 +62,17 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
     if (updated != null) onProfileUpdated(profile.copyWith(interestedRegions: updated));
+  }
+
+  void _openScrappedPolicies(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ScrappedPoliciesScreen(
+          profile: profile,
+          onProfileUpdated: onProfileUpdated,
+        ),
+      ),
+    );
   }
 
   @override
@@ -130,6 +142,10 @@ class ProfileScreen extends StatelessWidget {
                 value: profile.enrollmentStatus.isEmpty ? '-' : profile.enrollmentStatus,
               ),
               _ProfileInfoRow(label: '지역', value: profile.region),
+              _ProfileInfoRow(
+                label: '기준중위소득 구간',
+                value: profile.incomeBracketLabel ?? '-',
+              ),
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -172,6 +188,83 @@ class ProfileScreen extends StatelessWidget {
                               ))
                           .toList(),
                     ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '관심사',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: TossColors.textSecondary,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => _editProfile(context),
+                    child: const Text(
+                      '관리',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: TossColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              profile.interests.isEmpty
+                  ? const Text(
+                      '설정된 관심사가 없어요',
+                      style: TextStyle(fontSize: 14, color: TossColors.textSecondary),
+                    )
+                  : Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: profile.interests
+                          .map((interest) => Chip(
+                                label: Text(interest),
+                                backgroundColor: TossColors.fieldFill,
+                                side: BorderSide.none,
+                              ))
+                          .toList(),
+                    ),
+              const SizedBox(height: 24),
+              GestureDetector(
+                onTap: () => _openScrappedPolicies(context),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '스크랩한 정책',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: TossColors.textSecondary,
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${profile.scrappedPolicies.length}건',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: TossColors.primary,
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right,
+                          size: 18,
+                          color: TossColors.textSecondary,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 40),
               Center(
                 child: TextButton(

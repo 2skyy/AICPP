@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -61,7 +63,10 @@ class _ReportScreenState extends State<ReportScreen> {
 
     final hadNoInterests = oldWidget.profile.interests.isEmpty;
     final hasInterestsNow = widget.profile.interests.isNotEmpty;
-    if (hadNoInterests && hasInterestsNow) _loadNews();
+    if (hadNoInterests && hasInterestsNow) {
+      final matching = _items?.where((item) => item.matchesProfile(widget.profile)).length;
+      _loadNews(count: matching);
+    }
   }
 
   Set<String> get _regions => {widget.profile.region, ...widget.profile.interestedRegions};
@@ -72,7 +77,8 @@ class _ReportScreenState extends State<ReportScreen> {
       _error = null;
     });
     try {
-      final results = await Future.wait(_regions.map((r) => _policyApi.search(name: r, size: 30)));
+      final results =
+          await Future.wait(_regions.map((r) => _policyApi.searchAllPages(region: r, size: 50)));
       if (!mounted) return;
       final combined = <String, PolicyItem>{};
       for (final result in results) {
@@ -81,7 +87,12 @@ class _ReportScreenState extends State<ReportScreen> {
           combined[item.policyNo ?? item.name] = item;
         }
       }
-      setState(() => _items = combined.values.toList());
+      final items = combined.values.toList();
+      setState(() => _items = items);
+      // 뉴스 개수를 매칭된 정책 수에 맞추기 위해, 정책 로딩이 끝난 뒤
+      // 정확한 개수로 다시 요청한다 (초기 로딩 중엔 기본 개수로 먼저 표시됨).
+      final matching = items.where((item) => item.matchesProfile(widget.profile)).length;
+      unawaited(_loadNews(count: matching));
     } on PolicyApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
@@ -102,7 +113,7 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
-  Future<void> _loadNews() async {
+  Future<void> _loadNews({int? count}) async {
     if (widget.profile.interests.isEmpty) {
       setState(() {
         _newsArticles = const [];
@@ -115,7 +126,8 @@ class _ReportScreenState extends State<ReportScreen> {
       _newsError = null;
     });
     try {
-      final articles = await _newsApi.fetchRecommendations(widget.profile.interests);
+      final articles =
+          await _newsApi.fetchRecommendations(widget.profile.interests, count: count);
       if (!mounted) return;
       setState(() => _newsArticles = articles);
     } on NewsApiException catch (e) {
@@ -141,24 +153,61 @@ class _ReportScreenState extends State<ReportScreen> {
         title: const Text('리포트'),
       ),
       body: SafeArea(
-        child: widget.profile.interestedRegions.isEmpty
-            ? _EmptyReportView(onAddRegions: _addInterestedRegions)
-            : _buildBody(),
+        child: RefreshIndicator(
+          onRefresh: () async {
+            if (widget.profile.interestedRegions.isNotEmpty) {
+              // _load() itself refreshes the news with a matching count.
+              await _load();
+            } else {
+              await _loadNews();
+            }
+          },
+          child: ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              if (widget.profile.interestedRegions.isEmpty)
+                _EmptyReportView(onAddRegions: _addInterestedRegions)
+              else
+                ..._buildPolicySection(),
+              const SizedBox(height: 32),
+              const Text(
+                '추천 뉴스',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: TossColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildNewsSection(),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildBody() {
+  // Independent of the news section below — a stuck/failed policy fetch (or
+  // no interested regions yet) shouldn't hide the news, since news is keyed
+  // off interests, not regions.
+  List<Widget> _buildPolicySection() {
     if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(_error!, style: const TextStyle(color: TossColors.textSecondary)),
+      return [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 40),
+          child: Center(
+            child: Text(_error!, style: const TextStyle(color: TossColors.textSecondary)),
+          ),
         ),
-      );
+      ];
     }
     if (_items == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const [
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 40),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ];
     }
 
     final items = _items!;
@@ -175,75 +224,87 @@ class _ReportScreenState extends State<ReportScreen> {
     final upcoming = items.where((item) => item.deadline != null).toList()
       ..sort((a, b) => a.deadline!.compareTo(b.deadline!));
 
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.all(24),
+    final hasGap = matching < total;
+    var ageMismatchCount = 0;
+    var incomeMismatchCount = 0;
+    var hasUnassessedIncome = false;
+    if (hasGap) {
+      for (final item in items) {
+        if (!item.ageMatches(widget.profile)) ageMismatchCount++;
+        if (!item.incomeMatches(widget.profile)) incomeMismatchCount++;
+        if (item.maxIncomePercent != null && widget.profile.incomePercent == null) {
+          hasUnassessedIncome = true;
+        }
+      }
+    }
+
+    return [
+      const Text(
+        '나의 정책 리포트',
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: TossColors.textPrimary,
+        ),
+      ),
+      Text(
+        '거주지역·관심지역 정책 $total건 기준',
+        style: const TextStyle(fontSize: 13, color: TossColors.textSecondary),
+      ),
+      const SizedBox(height: 24),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '나의 정책 리포트',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: TossColors.textPrimary,
-            ),
+          Expanded(
+            child: _MatchGauge(matching: matching, total: total),
           ),
-          Text(
-            '거주지역·관심지역 정책 $total건 기준',
-            style: const TextStyle(fontSize: 13, color: TossColors.textSecondary),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _CategoryDonut(categoryCounts: categoryCounts),
           ),
-          const SizedBox(height: 24),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _MatchGauge(matching: matching, total: total),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _CategoryDonut(categoryCounts: categoryCounts),
-              ),
-            ],
-          ),
-          const SizedBox(height: 32),
-          const Text(
-            '마감임박',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: TossColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (upcoming.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                '마감일이 확인된 정책이 없어요',
-                style: TextStyle(fontSize: 14, color: TossColors.textSecondary),
-              ),
-            )
-          else
-            ...upcoming.take(5).map((item) => _DeadlineTile(
-                  item: item,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => PolicyDetailScreen(policy: item)),
-                  ),
-                )),
-          const SizedBox(height: 32),
-          const Text(
-            '추천 뉴스',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: TossColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildNewsSection(),
         ],
       ),
-    );
+      const SizedBox(height: 32),
+      const Text(
+        '마감임박',
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: TossColors.textPrimary,
+        ),
+      ),
+      const SizedBox(height: 12),
+      if (upcoming.isEmpty)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Text(
+            '마감일이 확인된 정책이 없어요',
+            style: TextStyle(fontSize: 14, color: TossColors.textSecondary),
+          ),
+        )
+      else
+        ...upcoming.take(5).map((item) => _DeadlineTile(
+              item: item,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => PolicyDetailScreen(
+                    policy: item,
+                    profile: widget.profile,
+                    onProfileUpdated: widget.onProfileUpdated,
+                  ),
+                ),
+              ),
+            )),
+      if (hasGap) ...[
+        const SizedBox(height: 24),
+        _MatchGapNotice(
+          profile: widget.profile,
+          ageMismatchCount: ageMismatchCount,
+          incomeMismatchCount: incomeMismatchCount,
+          hasUnassessedIncomeConditions: hasUnassessedIncome,
+        ),
+      ],
+    ];
   }
 
   Widget _buildNewsSection() {
@@ -422,6 +483,63 @@ class _CategoryDonut extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _MatchGapNotice extends StatelessWidget {
+  const _MatchGapNotice({
+    required this.profile,
+    required this.ageMismatchCount,
+    required this.incomeMismatchCount,
+    required this.hasUnassessedIncomeConditions,
+  });
+
+  final UserProfile profile;
+  final int ageMismatchCount;
+  final int incomeMismatchCount;
+  final bool hasUnassessedIncomeConditions;
+
+  @override
+  Widget build(BuildContext context) {
+    final ageText = profile.age > 0 ? '회원님 나이(만 ${profile.age}세) 기준으로 ' : '';
+    final incomeText = profile.incomePercent != null ? '회원님 소득(중위소득 약 ${profile.incomePercent}%) 기준으로 ' : '';
+    final reasons = <String>[
+      if (ageMismatchCount > 0) '$ageText나이 조건이 맞지 않는 정책 $ageMismatchCount건이 있어요',
+      if (incomeMismatchCount > 0) '$incomeText소득 조건이 맞지 않는 정책 $incomeMismatchCount건이 있어요',
+      if (hasUnassessedIncomeConditions)
+        '소득 정보를 입력하지 않아 일부 정책의 소득 조건은 판단하지 못했어요 (프로필에서 가구원수·월소득을 입력하면 정확해져요)',
+    ];
+    if (reasons.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: TossColors.fieldFill,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '충족률이 100%가 아닌 이유',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: TossColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...reasons.map((reason) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  '· $reason',
+                  style: const TextStyle(fontSize: 12, color: TossColors.textSecondary),
+                ),
+              )),
+        ],
+      ),
     );
   }
 }

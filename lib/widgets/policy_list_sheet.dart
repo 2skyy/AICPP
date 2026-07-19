@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/policy_item.dart';
+import '../models/user_profile.dart';
 import '../screens/policy_detail_screen.dart';
 import '../services/policy_api_service.dart';
 import '../theme/toss_colors.dart';
@@ -10,10 +11,14 @@ class PolicyListSheet extends StatefulWidget {
   const PolicyListSheet({
     super.key,
     required this.region,
+    required this.profile,
+    required this.onProfileUpdated,
     this.policyApiService,
   });
 
   final String region;
+  final UserProfile profile;
+  final ValueChanged<UserProfile> onProfileUpdated;
   final PolicyApiService? policyApiService;
 
   @override
@@ -38,7 +43,7 @@ class _PolicyListSheetState extends State<PolicyListSheet> {
       _error = null;
     });
     try {
-      final result = await _policyApi.search(name: widget.region, size: 30);
+      final result = await _policyApi.searchAllPages(region: widget.region, size: 50);
       if (!mounted) return;
       setState(() => _items = result.items.where((item) => item.isCurrentlyOpen).toList());
     } on PolicyApiException catch (e) {
@@ -166,8 +171,15 @@ class _PolicyListSheetState extends State<PolicyListSheet> {
         final item = items[index];
         return _PolicyCard(
           item: item,
+          profile: widget.profile,
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => PolicyDetailScreen(policy: item)),
+            MaterialPageRoute(
+              builder: (_) => PolicyDetailScreen(
+                policy: item,
+                profile: widget.profile,
+                onProfileUpdated: widget.onProfileUpdated,
+              ),
+            ),
           ),
         );
       },
@@ -206,9 +218,10 @@ class _SortChip extends StatelessWidget {
 }
 
 class _PolicyCard extends StatelessWidget {
-  const _PolicyCard({required this.item, required this.onTap});
+  const _PolicyCard({required this.item, required this.profile, required this.onTap});
 
   final PolicyItem item;
+  final UserProfile profile;
   final VoidCallback onTap;
 
   @override
@@ -240,6 +253,30 @@ class _PolicyCard extends StatelessWidget {
               Text(
                 item.period!,
                 style: const TextStyle(fontSize: 13, color: TossColors.textSecondary),
+              ),
+            ],
+            if (item.supportAmountLabel != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                item.supportAmountIsPrecise
+                    ? item.supportAmountLabel!
+                    : '${item.supportAmountLabel!} (추정)',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: TossColors.primary,
+                ),
+              ),
+            ],
+            if (!item.ageMatches(profile)) ...[
+              const SizedBox(height: 6),
+              const Text(
+                '나이 조건 미충족',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: TossColors.error,
+                ),
               ),
             ],
           ],

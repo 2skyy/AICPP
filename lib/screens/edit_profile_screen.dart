@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import '../constants/interests.dart';
+import '../constants/median_income.dart';
 import '../constants/regions.dart';
+import '../constants/universities.dart';
 import '../models/user_profile.dart';
 import '../theme/toss_colors.dart';
 import '../utils/age.dart';
 import '../utils/gpa_input_formatter.dart';
 import '../utils/validators.dart';
+import '../widgets/income_bracket_info_dialog.dart';
+import '../widgets/toss_autocomplete_field.dart';
 import '../widgets/toss_button.dart';
 import '../widgets/toss_chip_selector.dart';
 import '../widgets/toss_text_field.dart';
@@ -27,8 +31,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final _emailController = TextEditingController(text: widget.profile.email);
   late final _birthDateController = TextEditingController(text: _formatBirthDate(widget.profile.birthDate));
   late final _schoolController = TextEditingController(text: widget.profile.school);
+  final _schoolFocusNode = FocusNode();
   late final _gpaController =
       TextEditingController(text: widget.profile.gpa > 0 ? widget.profile.gpa.toStringAsFixed(2) : '');
+  late final _monthlyIncomeController =
+      TextEditingController(text: widget.profile.monthlyIncome?.toString() ?? '');
 
   late DateTime? _birthDate = widget.profile.birthDate;
   late String? _gender = widget.profile.gender.isEmpty ? null : widget.profile.gender;
@@ -36,8 +43,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       widget.profile.enrollmentStatus.isEmpty ? null : widget.profile.enrollmentStatus;
   late String? _region = widget.profile.region.isEmpty ? null : widget.profile.region;
   late final Set<String> _interests = widget.profile.interests.toSet();
+  late int? _householdSize = widget.profile.householdSize;
 
   bool _showErrors = false;
+
+  int? get _monthlyIncome => int.tryParse(_monthlyIncomeController.text);
+
+  String? get _incomeBracketLabel {
+    if (_householdSize == null || _monthlyIncome == null) return null;
+    final median = medianIncomeFor(_householdSize!);
+    if (median == null || median == 0) return null;
+    final percent = ((_monthlyIncome! * 10000) / median * 100).round();
+    return '기준중위소득 약 $percent%';
+  }
 
   static String _formatBirthDate(DateTime? birthDate) {
     if (birthDate == null) return '';
@@ -51,7 +69,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _emailController.dispose();
     _birthDateController.dispose();
     _schoolController.dispose();
+    _schoolFocusNode.dispose();
     _gpaController.dispose();
+    _monthlyIncomeController.dispose();
     super.dispose();
   }
 
@@ -129,6 +149,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       enrollmentStatus: _enrollmentStatus,
       region: _region,
       interests: _interests.toList(),
+      householdSize: _householdSize,
+      monthlyIncome: _monthlyIncome,
     );
 
     Navigator.of(context).pop(updated);
@@ -181,9 +203,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 onToggle: (value) => setState(() => _gender = value),
               ),
               const SizedBox(height: 20),
-              TossTextField(
+              TossAutocompleteField(
                 label: '학교',
+                options: kUniversities,
                 controller: _schoolController,
+                focusNode: _schoolFocusNode,
                 errorText: _schoolError,
                 onChanged: (_) => setState(() {}),
               ),
@@ -225,6 +249,46 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     _interests.add(value);
                   }
                 }),
+              ),
+              const SizedBox(height: 20),
+              TossChipSelector(
+                label: '가구원수',
+                options: kHouseholdSizeLabels.values.toList(),
+                selected: _householdSize == null ? {} : {kHouseholdSizeLabels[_householdSize]!},
+                onToggle: (label) => setState(() {
+                  _householdSize =
+                      kHouseholdSizeLabels.entries.firstWhere((e) => e.value == label).key;
+                }),
+              ),
+              const SizedBox(height: 20),
+              TossTextField(
+                label: '월 소득 (만원 단위)',
+                controller: _monthlyIncomeController,
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
+              ),
+              if (_incomeBracketLabel != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  _incomeBracketLabel!,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: TossColors.primary,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: () => showIncomeBracketInfo(context),
+                child: const Text(
+                  '소득구간은 어떻게 계산되나요?',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: TossColors.textSecondary,
+                  ),
+                ),
               ),
               const SizedBox(height: 40),
               TossButton(label: '저장', onPressed: _submit),

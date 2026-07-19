@@ -111,6 +111,46 @@ class NewsRecommendationServiceTest(unittest.TestCase):
 
         self.assertEqual(result, [])
 
+    def test_strips_markdown_from_the_reason_text(self):
+        news_client = Mock()
+        news_client.search.return_value = [
+            {"title": "기사", "url": "u", "source": {"name": "s"}},
+        ]
+        anthropic_client = Mock()
+        anthropic_client.messages.create.return_value = _text_message(
+            '[{"index": 0, "reason": "**주거** 관련 기사예요."}]'
+        )
+
+        service = NewsRecommendationService(news_client, client=anthropic_client)
+        result = service.recommend(["주거"])
+
+        self.assertEqual(result[0]["reason"], "주거 관련 기사예요.")
+
+    def test_count_zero_returns_empty_without_calling_apis(self):
+        news_client = Mock()
+        anthropic_client = Mock()
+        service = NewsRecommendationService(news_client, client=anthropic_client)
+
+        result = service.recommend(["주거"], count=0)
+
+        self.assertEqual(result, [])
+        news_client.search.assert_not_called()
+        anthropic_client.messages.create.assert_not_called()
+
+    def test_count_is_passed_into_the_curation_prompt(self):
+        news_client = Mock()
+        news_client.search.return_value = [
+            {"title": "기사", "url": "u", "source": {"name": "s"}},
+        ]
+        anthropic_client = Mock()
+        anthropic_client.messages.create.return_value = _text_message("[]")
+
+        service = NewsRecommendationService(news_client, client=anthropic_client)
+        service.recommend(["주거"], count=3)
+
+        system_prompt = anthropic_client.messages.create.call_args.kwargs["system"]
+        self.assertIn("정확히 3개", system_prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

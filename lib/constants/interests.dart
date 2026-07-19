@@ -10,5 +10,6 @@ const List<String> kInterests = [
   '문화',
   '건강',
   '금융',
-  '참여',
+  '청년권리',
+  '국제교류',
 ];

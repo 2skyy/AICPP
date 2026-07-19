@@ -1,3 +1,5 @@
+import 'policy_item.dart';
+import '../constants/median_income.dart';
 import '../utils/age.dart';
 
 class UserProfile {
@@ -12,6 +14,9 @@ class UserProfile {
     required this.region,
     required this.interestedRegions,
     this.interests = const [],
+    this.scrappedPolicies = const [],
+    this.householdSize,
+    this.monthlyIncome,
   });
 
   final String name;
@@ -24,8 +29,38 @@ class UserProfile {
   final String region;
   final List<String> interestedRegions;
   final List<String> interests;
+  final List<PolicyItem> scrappedPolicies;
+
+  /// 가구원수 (1~6, 6은 "6인 이상"), null이면 아직 입력 안 함.
+  final int? householdSize;
+
+  /// 월 소득 (만원 단위), null이면 아직 입력 안 함.
+  final int? monthlyIncome;
+
+  bool isScrapped(PolicyItem policy) {
+    final id = policy.policyNo ?? policy.name;
+    return scrappedPolicies.any((p) => (p.policyNo ?? p.name) == id);
+  }
 
   int get age => birthDate == null ? 0 : calculateAge(birthDate!);
+
+  /// 가구원수 + 월소득으로 계산한 기준중위소득 대비 비율(%). 둘 중 하나라도
+  /// 입력 안 됐으면 null.
+  int? get incomePercent {
+    final size = householdSize;
+    final income = monthlyIncome;
+    if (size == null || income == null) return null;
+    final median = medianIncomeFor(size);
+    if (median == null || median == 0) return null;
+    return ((income * 10000) / median * 100).round();
+  }
+
+  /// [incomePercent]를 사람이 읽기 쉬운 문장으로 표현한 것.
+  String? get incomeBracketLabel {
+    final percent = incomePercent;
+    if (percent == null) return null;
+    return '기준중위소득 약 $percent%';
+  }
 
   UserProfile copyWith({
     String? name,
@@ -38,6 +73,9 @@ class UserProfile {
     String? region,
     List<String>? interestedRegions,
     List<String>? interests,
+    List<PolicyItem>? scrappedPolicies,
+    int? householdSize,
+    int? monthlyIncome,
   }) {
     return UserProfile(
       name: name ?? this.name,
@@ -50,6 +88,9 @@ class UserProfile {
       region: region ?? this.region,
       interestedRegions: interestedRegions ?? this.interestedRegions,
       interests: interests ?? this.interests,
+      scrappedPolicies: scrappedPolicies ?? this.scrappedPolicies,
+      householdSize: householdSize ?? this.householdSize,
+      monthlyIncome: monthlyIncome ?? this.monthlyIncome,
     );
   }
 }

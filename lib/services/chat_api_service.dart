@@ -29,7 +29,21 @@ class ChatApiService {
         'region': profile.region,
         'enrollment_status': profile.enrollmentStatus,
         'age': profile.age > 0 ? profile.age : null,
+        'gender': profile.gender.isEmpty ? null : profile.gender,
+        'school': profile.school.isEmpty ? null : profile.school,
+        'gpa': profile.gpa > 0 ? profile.gpa : null,
+        'income_percent': profile.incomePercent,
         'interested_regions': profile.interestedRegions,
+        'scrapped_policies': profile.scrappedPolicies
+            .map((p) => {
+                  'name': p.name,
+                  'organization': p.organization,
+                  'period': p.period,
+                  'description': p.description,
+                  'support_content': p.supportContent,
+                  'apply_method': p.applyMethod,
+                })
+            .toList(),
       },
     });
 

@@ -19,11 +19,13 @@ class MainScreen extends StatefulWidget {
     super.key,
     required this.profile,
     this.onInterestedRegionsChanged,
+    this.onProfileUpdated,
     this.policyApiService,
   });
 
   final UserProfile profile;
   final ValueChanged<List<String>>? onInterestedRegionsChanged;
+  final ValueChanged<UserProfile>? onProfileUpdated;
   final PolicyApiService? policyApiService;
 
   @override
@@ -46,8 +48,8 @@ class _MainScreenState extends State<MainScreen> {
     final entries = await Future.wait(regions.map((region) async {
       try {
         // totalCount from the API includes closed/not-yet-open policies, so
-        // fetch a page and count only ones open as of today.
-        final result = await _policyApi.search(name: region, size: 50);
+        // fetch enough pages to count only ones open as of today.
+        final result = await _policyApi.searchAllPages(region: region, size: 50);
         final openCount = result.items.where((item) => item.isCurrentlyOpen).length;
         return MapEntry(region, openCount);
       } on PolicyApiException {
@@ -100,6 +102,8 @@ class _MainScreenState extends State<MainScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => PolicyListSheet(
         region: region,
+        profile: profile,
+        onProfileUpdated: (updated) => widget.onProfileUpdated?.call(updated),
         policyApiService: _policyApi,
       ),
     );
@@ -224,6 +228,8 @@ class _MainScreenState extends State<MainScreen> {
                                   target: NLatLng(36.5, 127.8),
                                   zoom: 6.5,
                                 ),
+                                activeLayerGroups: [],
+                                lightness: 0.7,
                               ),
                               onMapReady: _onMapReady,
                             ),

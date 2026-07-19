@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../models/user_profile.dart';
 import '../theme/toss_colors.dart';
 import '../widgets/social_login_button.dart';
@@ -116,10 +117,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       backgroundColor: const Color(0xFFFEE500),
                       semanticLabel: '카카오톡으로 로그인',
                       onTap: () => _showComingSoon('카카오톡'),
-                      child: const Icon(
-                        Icons.chat_bubble,
-                        color: Color(0xFF3C1E1E),
-                        size: 24,
+                      child: SvgPicture.asset(
+                        'assets/icons/kakaotalk_logo.svg',
+                        width: 26,
+                        height: 26,
+                        colorFilter: const ColorFilter.mode(Color(0xFF3C1E1E), BlendMode.srcIn),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -127,14 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       backgroundColor: Colors.white,
                       semanticLabel: '구글로 로그인',
                       onTap: () => _showComingSoon('구글'),
-                      child: const Text(
-                        'G',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF4285F4),
-                        ),
-                      ),
+                      child: SvgPicture.asset('assets/icons/google_logo.svg', width: 22, height: 22),
                     ),
                     const SizedBox(width: 16),
                     SocialLoginButton(

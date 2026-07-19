@@ -46,3 +46,4 @@ app.*.map.json
 
 # Local API keys/secrets — never commit
 config/*.local.json
+/AICPP.zip

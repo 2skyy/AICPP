@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import '../constants/interests.dart';
+import '../constants/median_income.dart';
 import '../constants/regions.dart';
+import '../constants/universities.dart';
 import '../models/user_profile.dart';
 import '../theme/toss_colors.dart';
 import '../utils/age.dart';
 import '../utils/gpa_input_formatter.dart';
 import '../utils/validators.dart';
+import '../widgets/income_bracket_info_dialog.dart';
+import '../widgets/toss_autocomplete_field.dart';
 import '../widgets/toss_button.dart';
 import '../widgets/toss_chip_selector.dart';
 import '../widgets/toss_text_field.dart';
@@ -27,7 +31,9 @@ class ProfileSetupScreen extends StatefulWidget {
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final _birthDateController = TextEditingController();
   final _schoolController = TextEditingController();
+  final _schoolFocusNode = FocusNode();
   final _gpaController = TextEditingController();
+  final _monthlyIncomeController = TextEditingController();
 
   DateTime? _birthDate;
   String? _gender;
@@ -35,14 +41,27 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   String? _region;
   final Set<String> _interestedRegions = {};
   final Set<String> _interests = {};
+  int? _householdSize;
 
   bool _showErrors = false;
+
+  int? get _monthlyIncome => int.tryParse(_monthlyIncomeController.text);
+
+  String? get _incomeBracketLabel {
+    if (_householdSize == null || _monthlyIncome == null) return null;
+    final median = medianIncomeFor(_householdSize!);
+    if (median == null || median == 0) return null;
+    final percent = ((_monthlyIncome! * 10000) / median * 100).round();
+    return '기준중위소득 약 $percent%';
+  }
 
   @override
   void dispose() {
     _birthDateController.dispose();
     _schoolController.dispose();
+    _schoolFocusNode.dispose();
     _gpaController.dispose();
+    _monthlyIncomeController.dispose();
     super.dispose();
   }
 
@@ -114,6 +133,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       region: _region!,
       interestedRegions: _interestedRegions.toList(),
       interests: _interests.toList(),
+      householdSize: _householdSize,
+      monthlyIncome: _monthlyIncome,
     );
 
     Navigator.of(context).pushReplacement(
@@ -161,9 +182,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 onToggle: (value) => setState(() => _gender = value),
               ),
               const SizedBox(height: 20),
-              TossTextField(
+              TossAutocompleteField(
                 label: '학교',
+                options: kUniversities,
                 controller: _schoolController,
+                focusNode: _schoolFocusNode,
                 errorText: _schoolError,
                 onChanged: (_) => setState(() {}),
               ),
@@ -190,13 +213,17 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 options: kRegions,
                 selected: _region == null ? {} : {_region!},
                 errorText: _regionError,
-                onToggle: (value) => setState(() => _region = value),
+                onToggle: (value) => setState(() {
+                  _region = value;
+                  _interestedRegions.remove(value);
+                }),
               ),
               const SizedBox(height: 20),
               TossChipSelector(
                 label: '관심지역 (복수 선택 가능)',
                 options: kRegions,
-                selected: _interestedRegions,
+                selected: _region == null ? _interestedRegions : {..._interestedRegions, _region!},
+                disabled: _region == null ? const {} : {_region!},
                 multiSelect: true,
                 errorText: _interestedRegionsError,
                 onToggle: (value) => setState(() {
@@ -220,6 +247,46 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     _interests.add(value);
                   }
                 }),
+              ),
+              const SizedBox(height: 20),
+              TossChipSelector(
+                label: '가구원수',
+                options: kHouseholdSizeLabels.values.toList(),
+                selected: _householdSize == null ? {} : {kHouseholdSizeLabels[_householdSize]!},
+                onToggle: (label) => setState(() {
+                  _householdSize =
+                      kHouseholdSizeLabels.entries.firstWhere((e) => e.value == label).key;
+                }),
+              ),
+              const SizedBox(height: 20),
+              TossTextField(
+                label: '월 소득 (만원 단위)',
+                controller: _monthlyIncomeController,
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
+              ),
+              if (_incomeBracketLabel != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  _incomeBracketLabel!,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: TossColors.primary,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: () => showIncomeBracketInfo(context),
+                child: const Text(
+                  '소득구간은 어떻게 계산되나요?',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: TossColors.textSecondary,
+                  ),
+                ),
               ),
               const SizedBox(height: 40),
               TossButton(label: '완료', onPressed: _submit),

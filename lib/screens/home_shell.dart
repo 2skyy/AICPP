@@ -68,6 +68,7 @@ class _HomeShellState extends State<HomeShell> {
                   MainScreen(
                     profile: _profile,
                     onInterestedRegionsChanged: _handleInterestedRegionsChanged,
+                    onProfileUpdated: _updateProfile,
                     policyApiService: widget.mapPolicyApiService,
                   ),
                   ReportScreen(
