@@ -7,32 +7,36 @@ DateTime _dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
 /// bureaucratic synonym ("연중", "계속" 등) the API happened to use.
 const _ongoingPeriodSynonyms = {'상시', '연중', '계속', '연례반복', '매년', '수시'};
 
-final _amountPattern = RegExp(r'(\d[\d,]*)(?:\.(\d+))?\s*(억|만)?\s*원');
-
-/// Best-effort won amount parsed out of free-text support content (e.g.
-/// "월 20만원 지원", "최대 300만원", "1,000,000원"). Takes the largest amount
-/// mentioned in the text, since these descriptions often list several
-/// figures (a monthly amount and a total cap) and the total is the more
-/// useful one for comparing policies. Returns null when no amount is found.
-int? _parseSupportAmount(String? text) {
-  if (text == null) return null;
-  int? maxAmount;
-  for (final match in _amountPattern.allMatches(text)) {
-    final integerPart = match.group(1)!.replaceAll(',', '');
-    final decimalPart = match.group(2);
-    final unit = match.group(3);
-    final value = double.tryParse(decimalPart == null ? integerPart : '$integerPart.$decimalPart');
-    if (value == null) continue;
-    final multiplier = switch (unit) {
-      '억' => 100000000,
-      '만' => 10000,
-      _ => 1,
-    };
-    final amount = (value * multiplier).round();
-    if (maxAmount == null || amount > maxAmount) maxAmount = amount;
-  }
-  return maxAmount;
-}
+// 정책 화면에 보여주는 지원금액은 이제 Supabase 파이프라인이 사람 검토까지 거쳐
+// 확정한 값(preciseSupportAmount)만 쓴다 — 아래 정규식 기반 추정치는 실제 재정
+// 결정에 쓰일 수 있는 화면에 검증 안 된 숫자를 "정확한 금액"처럼 보여줄 위험이
+// 있어 더 이상 표시에 쓰지 않지만, 나중에 다시 필요할 수도 있어 주석으로 남겨둔다.
+// final _amountPattern = RegExp(r'(\d[\d,]*)(?:\.(\d+))?\s*(억|만)?\s*원');
+//
+// /// Best-effort won amount parsed out of free-text support content (e.g.
+// /// "월 20만원 지원", "최대 300만원", "1,000,000원"). Takes the largest amount
+// /// mentioned in the text, since these descriptions often list several
+// /// figures (a monthly amount and a total cap) and the total is the more
+// /// useful one for comparing policies. Returns null when no amount is found.
+// int? _parseSupportAmount(String? text) {
+//   if (text == null) return null;
+//   int? maxAmount;
+//   for (final match in _amountPattern.allMatches(text)) {
+//     final integerPart = match.group(1)!.replaceAll(',', '');
+//     final decimalPart = match.group(2);
+//     final unit = match.group(3);
+//     final value = double.tryParse(decimalPart == null ? integerPart : '$integerPart.$decimalPart');
+//     if (value == null) continue;
+//     final multiplier = switch (unit) {
+//       '억' => 100000000,
+//       '만' => 10000,
+//       _ => 1,
+//     };
+//     final amount = (value * multiplier).round();
+//     if (maxAmount == null || amount > maxAmount) maxAmount = amount;
+//   }
+//   return maxAmount;
+// }
 
 /// Formats a won amount for display, e.g. 1500000 -> "150만원",
 /// 100000000 -> "1억원", 150000000 -> "1억 5천만원".
@@ -59,6 +63,40 @@ int? _parseMaxIncomePercent(String? text) {
   if (match == null) return null;
   return int.tryParse(match.group(1)!);
 }
+
+/// The government API's `lclsfNm` (대분류) uses a few different spellings for
+/// the same 5 categories (e.g. "복지문화" vs "금융･복지･문화", using the
+/// halfwidth katakana middle dot ･ U+FF65, not a regular ·), and sometimes
+/// lists several comma-separated values for one policy (often just the same
+/// category repeated). This maps any raw value down to one clean label.
+const _categorySynonyms = {
+  '일자리': '일자리',
+  '주거': '주거',
+  '교육': '교육',
+  '교육･직업훈련': '교육',
+  '복지문화': '복지문화',
+  '금융･복지･문화': '복지문화',
+  '참여권리': '참여권리',
+  '참여･기반': '참여권리',
+};
+
+String? _normalizeCategory(String? raw) {
+  if (raw == null || raw.trim().isEmpty) return null;
+  final first = raw.split(',').first.trim();
+  if (first.isEmpty) return null;
+  return _categorySynonyms[first] ?? first;
+}
+
+/// A handful of [kInterests] values (`lib/constants/interests.dart`) are
+/// compound words that won't literally appear in policy text as one token
+/// (e.g. a policy mentions "문화" or "복지" separately, never "복지문화") —
+/// this expands those down to the words actually worth searching for.
+const _interestKeywordGroups = {
+  '복지문화': ['복지', '문화'],
+};
+
+List<String> _keywordsForInterest(String interest) =>
+    _interestKeywordGroups[interest] ?? [interest];
 
 /// A single youth policy result from the 온통청년 API.
 ///
@@ -121,6 +159,9 @@ class PolicyItem {
   /// rule it out.
   bool ageMatches(UserProfile profile) {
     if (profile.age <= 0) return true;
+    // "0세 ~ 0세" is how the government API represents "no age limit" (전
+    // 연령 대상), not a literal range that only a newborn could satisfy.
+    if (minAge == 0 && maxAge == 0) return true;
     if (minAge != null && profile.age < minAge!) return false;
     if (maxAge != null && profile.age > maxAge!) return false;
     return true;
@@ -137,13 +178,39 @@ class PolicyItem {
     return true;
   }
 
-  /// Won amount used by the map's "지원금액 많은 순" sort. Prefers
-  /// [preciseSupportAmount] (Supabase pipeline) when available, falling back
-  /// to a best-effort regex parse of [supportContent] otherwise.
-  int? get supportAmount => preciseSupportAmount ?? _parseSupportAmount(supportContent);
+  /// Won amount used by the map's "지원금액 많은 순" sort and shown to the
+  /// user. Only the Supabase pipeline's human-reviewed [preciseSupportAmount]
+  /// — no regex-guessed fallback, since users may make real decisions off
+  /// this number and an unverified guess shouldn't be presented as fact.
+  int? get supportAmount => preciseSupportAmount;
 
   /// Best-effort "기준중위소득 N% 이하" ceiling parsed from [incomeInfo].
   int? get maxIncomePercent => _parseMaxIncomePercent(incomeInfo);
+
+  /// [category] normalized down to one of the government API's 5 real
+  /// categories (일자리/주거/교육/복지문화/참여권리), collapsing spelling
+  /// variants and comma-separated duplicates. Null when [category] itself is
+  /// null/empty.
+  String? get categoryLabel => _normalizeCategory(category);
+
+  /// Which of [UserProfile.interests] this policy's name/description/support
+  /// content actually mentions. Unlike [ageMatches]/[incomeMatches] (hard
+  /// eligibility — can this user even apply), this is a soft "might this
+  /// interest them" signal, so it's never used to hide policies, only to tag
+  /// ones worth surfacing to a user who picked that interest.
+  List<String> matchingInterests(UserProfile profile) {
+    if (profile.interests.isEmpty) return const [];
+    final haystack = [name, description, category, supportContent]
+        .whereType<String>()
+        .join(' ');
+    return profile.interests
+        .where((interest) =>
+            _keywordsForInterest(interest).any(haystack.contains))
+        .toList();
+  }
+
+  /// Whether this policy relates to any of the user's selected interests.
+  bool matchesInterests(UserProfile profile) => matchingInterests(profile).isNotEmpty;
 
   /// [supportAmount] formatted for display, e.g. "150만원". Null when no
   /// amount could be determined at all.
@@ -152,10 +219,10 @@ class PolicyItem {
     return amount == null ? null : _formatWon(amount);
   }
 
-  /// Whether [supportAmount] came from the verified Supabase pipeline
-  /// ([preciseSupportAmount]) rather than the on-device regex guess — used to
-  /// tell users whether the shown amount is confirmed or just an estimate.
-  bool get supportAmountIsPrecise => preciseSupportAmount != null;
+  // supportAmount는 이제 preciseSupportAmount만 쓰므로 이 값은 항상 참이라
+  // 화면에서 더 안 쓰지만(추정치 구분이 필요 없어짐), 나중에 다시 추정치를
+  // 보여주게 되면 필요할 수 있어 주석으로 남겨둔다.
+  // bool get supportAmountIsPrecise => preciseSupportAmount != null;
 
   /// Whether today falls inside the policy's application window. Policies
   /// with no parseable dates (e.g. "상시") are treated as always open.

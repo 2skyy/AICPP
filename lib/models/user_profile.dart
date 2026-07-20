@@ -17,6 +17,7 @@ class UserProfile {
     this.scrappedPolicies = const [],
     this.householdSize,
     this.monthlyIncome,
+    this.militaryServiceStatus,
   });
 
   final String name;
@@ -36,6 +37,10 @@ class UserProfile {
 
   /// 월 소득 (만원 단위), null이면 아직 입력 안 함.
   final int? monthlyIncome;
+
+  /// 병역 이행 여부 ('군필' | '미필' | '공익' | '면제'). 남성일 때만 입력받으며,
+  /// 그 외에는 null.
+  final String? militaryServiceStatus;
 
   bool isScrapped(PolicyItem policy) {
     final id = policy.policyNo ?? policy.name;
@@ -76,6 +81,7 @@ class UserProfile {
     List<PolicyItem>? scrappedPolicies,
     int? householdSize,
     int? monthlyIncome,
+    String? militaryServiceStatus,
   }) {
     return UserProfile(
       name: name ?? this.name,
@@ -91,6 +97,7 @@ class UserProfile {
       scrappedPolicies: scrappedPolicies ?? this.scrappedPolicies,
       householdSize: householdSize ?? this.householdSize,
       monthlyIncome: monthlyIncome ?? this.monthlyIncome,
+      militaryServiceStatus: militaryServiceStatus ?? this.militaryServiceStatus,
     );
   }
 }

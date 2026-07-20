@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
 import '../theme/toss_colors.dart';
 import 'edit_profile_screen.dart';
-import 'interested_region_screen.dart';
+// 관심지역 섹션과 함께 안 쓰지만, 나중에 다시 쓸 수도 있어 주석으로 남겨둔다.
+// import 'interested_region_screen.dart';
 import 'login_screen.dart';
 import 'scrapped_policies_screen.dart';
 
@@ -52,17 +53,18 @@ class ProfileScreen extends StatelessWidget {
     if (updated != null) onProfileUpdated(updated);
   }
 
-  Future<void> _editInterestedRegions(BuildContext context) async {
-    final updated = await Navigator.of(context).push<List<String>>(
-      MaterialPageRoute(
-        builder: (_) => InterestedRegionScreen(
-          initialRegions: profile.interestedRegions,
-          homeRegion: profile.region,
-        ),
-      ),
-    );
-    if (updated != null) onProfileUpdated(profile.copyWith(interestedRegions: updated));
-  }
+  // 관심지역 섹션과 함께 안 쓰지만, 나중에 다시 쓸 수도 있어 주석으로 남겨둔다.
+  // Future<void> _editInterestedRegions(BuildContext context) async {
+  //   final updated = await Navigator.of(context).push<List<String>>(
+  //     MaterialPageRoute(
+  //       builder: (_) => InterestedRegionScreen(
+  //         initialRegions: profile.interestedRegions,
+  //         homeRegion: profile.region,
+  //       ),
+  //     ),
+  //   );
+  //   if (updated != null) onProfileUpdated(profile.copyWith(interestedRegions: updated));
+  // }
 
   void _openScrappedPolicies(BuildContext context) {
     Navigator.of(context).push(
@@ -132,6 +134,11 @@ class ProfileScreen extends StatelessWidget {
               const SizedBox(height: 32),
               _ProfileInfoRow(label: '나이', value: profile.age > 0 ? '${profile.age}세' : '-'),
               _ProfileInfoRow(label: '성별', value: profile.gender.isEmpty ? '-' : profile.gender),
+              if (profile.gender == '남성')
+                _ProfileInfoRow(
+                  label: '병역',
+                  value: profile.militaryServiceStatus ?? '-',
+                ),
               _ProfileInfoRow(label: '학교', value: profile.school.isEmpty ? '-' : profile.school),
               _ProfileInfoRow(
                 label: '학점',
@@ -146,48 +153,49 @@ class ProfileScreen extends StatelessWidget {
                 label: '기준중위소득 구간',
                 value: profile.incomeBracketLabel ?? '-',
               ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    '관심지역',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: TossColors.textSecondary,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => _editInterestedRegions(context),
-                    child: const Text(
-                      '관리',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: TossColors.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              profile.interestedRegions.isEmpty
-                  ? const Text(
-                      '설정된 관심지역이 없어요',
-                      style: TextStyle(fontSize: 14, color: TossColors.textSecondary),
-                    )
-                  : Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: profile.interestedRegions
-                          .map((region) => Chip(
-                                label: Text(region),
-                                backgroundColor: TossColors.fieldFill,
-                                side: BorderSide.none,
-                              ))
-                          .toList(),
-                    ),
+              // 관심지역 섹션: 지도 탭에서 이미 지역별로 색/건수를 충분히 구분해서
+              // 보여주므로 중복이라 뺐다. 나중에 다시 쓸 수도 있어 주석으로 남겨둔다.
+              // Row(
+              //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              //   children: [
+              //     const Text(
+              //       '관심지역',
+              //       style: TextStyle(
+              //         fontSize: 14,
+              //         fontWeight: FontWeight.w600,
+              //         color: TossColors.textSecondary,
+              //       ),
+              //     ),
+              //     GestureDetector(
+              //       onTap: () => _editInterestedRegions(context),
+              //       child: const Text(
+              //         '관리',
+              //         style: TextStyle(
+              //           fontSize: 13,
+              //           fontWeight: FontWeight.w600,
+              //           color: TossColors.primary,
+              //         ),
+              //       ),
+              //     ),
+              //   ],
+              // ),
+              // const SizedBox(height: 8),
+              // profile.interestedRegions.isEmpty
+              //     ? const Text(
+              //         '설정된 관심지역이 없어요',
+              //         style: TextStyle(fontSize: 14, color: TossColors.textSecondary),
+              //       )
+              //     : Wrap(
+              //         spacing: 8,
+              //         runSpacing: 8,
+              //         children: profile.interestedRegions
+              //             .map((region) => Chip(
+              //                   label: Text(region),
+              //                   backgroundColor: TossColors.fieldFill,
+              //                   side: BorderSide.none,
+              //                 ))
+              //             .toList(),
+              //       ),
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

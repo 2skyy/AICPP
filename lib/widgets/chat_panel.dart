@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
 import '../services/chat_api_service.dart';
@@ -129,44 +127,38 @@ class _ChatPanelState extends State<ChatPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-    final width = math.min(340.0, screenSize.width - 32);
-    final height = math.min(480.0, screenSize.height * 0.65);
-
+    // 크기를 스스로 정하지 않는다 — home_shell.dart가 Positioned에
+    // left/right/top/bottom을 모두 줘서 좌우 여백이 같고 세로도 남는 공간을
+    // 꽉 채우도록 강제한다.
     return Material(
       elevation: 12,
       color: TossColors.background,
       borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
-      child: SizedBox(
-        width: width,
-        height: height,
-        child: Column(
-          children: [
-            _PanelHeader(
-              hasMessages: _messages.isNotEmpty,
-              hasHistory: _history.isNotEmpty,
-              onNewConversation: _startNewConversation,
-              onOpenHistory: _openHistory,
-              onClose: widget.onClose,
-            ),
-            Expanded(
-              child: _messages.isEmpty
-                  ? _SuggestedQuestions(onSelect: _send)
-                  : LayoutBuilder(
-                      builder: (context, constraints) => ListView.builder(
-                        padding: const EdgeInsets.all(12),
-                        itemCount: _messages.length,
-                        itemBuilder: (context, index) => _ChatBubble(
-                          message: _messages[index],
-                          maxWidth: constraints.maxWidth * 0.85,
-                        ),
+      child: Column(
+        children: [
+          _PanelHeader(
+            hasMessages: _messages.isNotEmpty,
+            hasHistory: _history.isNotEmpty,
+            onNewConversation: _startNewConversation,
+            onOpenHistory: _openHistory,
+          ),
+          Expanded(
+            child: _messages.isEmpty
+                ? _SuggestedQuestions(onSelect: _send)
+                : LayoutBuilder(
+                    builder: (context, constraints) => ListView.builder(
+                      padding: const EdgeInsets.all(12),
+                      itemCount: _messages.length,
+                      itemBuilder: (context, index) => _ChatBubble(
+                        message: _messages[index],
+                        maxWidth: constraints.maxWidth * 0.85,
                       ),
                     ),
-            ),
-            _ChatInputBar(controller: _controller, onSend: () => _send()),
-          ],
-        ),
+                  ),
+          ),
+          _ChatInputBar(controller: _controller, onSend: () => _send()),
+        ],
       ),
     );
   }
@@ -178,14 +170,12 @@ class _PanelHeader extends StatelessWidget {
     required this.hasHistory,
     required this.onNewConversation,
     required this.onOpenHistory,
-    required this.onClose,
   });
 
   final bool hasMessages;
   final bool hasHistory;
   final VoidCallback onNewConversation;
   final VoidCallback onOpenHistory;
-  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +198,7 @@ class _PanelHeader extends StatelessWidget {
           ),
           _HeaderIconButton(
             onPressed: hasMessages ? onNewConversation : null,
-            icon: Icons.add_comment_outlined,
+            icon: Icons.edit_square,
             tooltip: '새 대화',
           ),
           _HeaderIconButton(
@@ -216,7 +206,6 @@ class _PanelHeader extends StatelessWidget {
             icon: Icons.history,
             tooltip: '대화 이력',
           ),
-          _HeaderIconButton(onPressed: onClose, icon: Icons.close, tooltip: '닫기'),
         ],
       ),
     );

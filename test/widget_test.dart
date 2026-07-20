@@ -16,6 +16,7 @@ import 'package:aicpp/screens/report_screen.dart';
 import 'package:aicpp/screens/scrapped_policies_screen.dart';
 import 'package:aicpp/services/chat_api_service.dart';
 import 'package:aicpp/services/news_api_service.dart';
+import 'package:aicpp/services/notification_service.dart';
 import 'package:aicpp/services/policy_api_service.dart';
 import 'package:aicpp/widgets/chat_panel.dart';
 import 'package:aicpp/widgets/policy_list_sheet.dart';
@@ -140,13 +141,19 @@ void main() {
 
     final selectors = find.byType(TossChipSelector);
     await tester.tap(find.descendant(of: selectors.at(0), matching: find.text('남성')));
-    await tester.tap(find.descendant(of: selectors.at(1), matching: find.text('재학')));
+    await tester.pump();
+
+    // Selecting 남성 inserts a 병역 selector right after 성별, shifting every
+    // selector after it down by one.
+    expect(find.text('병역'), findsOneWidget);
+    await tester.tap(find.descendant(of: selectors.at(1), matching: find.text('군필')));
+    await tester.tap(find.descendant(of: selectors.at(2), matching: find.text('재학')));
     await tester.ensureVisible(
-        find.descendant(of: selectors.at(2), matching: find.text('서울특별시')));
-    await tester.tap(find.descendant(of: selectors.at(2), matching: find.text('서울특별시')));
+        find.descendant(of: selectors.at(3), matching: find.text('서울특별시')));
+    await tester.tap(find.descendant(of: selectors.at(3), matching: find.text('서울특별시')));
     await tester.ensureVisible(
-        find.descendant(of: selectors.at(3), matching: find.text('부산광역시')));
-    await tester.tap(find.descendant(of: selectors.at(3), matching: find.text('부산광역시')));
+        find.descendant(of: selectors.at(4), matching: find.text('부산광역시')));
+    await tester.tap(find.descendant(of: selectors.at(4), matching: find.text('부산광역시')));
     await tester.pump();
 
     await tester.ensureVisible(find.text('완료'));
@@ -192,6 +199,60 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('보건복지부'), findsNothing);
+  });
+
+  testWidgets(
+      'Profile setup only shows the 병역 selector when 남성 is selected',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: ProfileSetupScreen(name: '홍길동', email: 'test@example.com'),
+    ));
+
+    expect(find.text('병역'), findsNothing);
+
+    final selectors = find.byType(TossChipSelector);
+    await tester.tap(find.descendant(of: selectors.at(0), matching: find.text('남성')));
+    await tester.pump();
+
+    expect(find.text('병역'), findsOneWidget);
+    expect(find.text('군필'), findsOneWidget);
+    expect(find.text('미필'), findsOneWidget);
+
+    await tester.tap(find.descendant(of: selectors.at(0), matching: find.text('여성')));
+    await tester.pump();
+
+    expect(find.text('병역'), findsNothing);
+  });
+
+  testWidgets(
+      'Profile setup hides and clears school/GPA when 재학상태 is set to 해당없음',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: ProfileSetupScreen(name: '홍길동', email: 'test@example.com'),
+    ));
+
+    // TextField 순서: 생년월일(0), 학교(1), 학점(2), 월 소득(3).
+    final profileFields = find.byType(TextField);
+    await tester.enterText(profileFields.at(1), '한국대학교');
+    await tester.enterText(profileFields.at(2), '4.0');
+    await tester.pump();
+
+    expect(find.text('한국대학교'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('해당없음'));
+    await tester.tap(find.text('해당없음'));
+    await tester.pump();
+
+    expect(find.text('학교'), findsNothing);
+    expect(find.text('학점 (4.5 만점)'), findsNothing);
+
+    // Switching back shows the fields again, cleared rather than restored.
+    await tester.ensureVisible(find.text('재학'));
+    await tester.tap(find.text('재학'));
+    await tester.pump();
+
+    expect(find.text('학교'), findsOneWidget);
+    expect(find.text('한국대학교'), findsNothing);
   });
 
   testWidgets('Signup blocks submission and shows error for invalid email',
@@ -250,6 +311,55 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('제주특별자치도'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Main screen\'s map placeholder region chips open the policy list (web has no real map)',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'result': {
+            'pagging': {'totCount': 1},
+            'youthPolicyList': [
+              {'plcyNm': '청년월세지원'},
+            ],
+          },
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      home: MainScreen(
+        profile: UserProfile(
+          name: '홍길동',
+          email: 'test@example.com',
+          birthDate: DateTime(2000, 1, 1),
+          gender: '남성',
+          school: '한국대학교',
+          gpa: 4.0,
+          enrollmentStatus: '재학',
+          region: '서울특별시',
+          interestedRegions: const [],
+        ),
+        policyApiService: PolicyApiService(client: mockClient),
+      ),
+    ));
+
+    // The test environment has no real Naver map host, so this is the same
+    // placeholder that renders on web — its region chips must be tappable so
+    // policy browsing isn't blocked when there's no real map to tap into.
+    await tester.tap(find.text('서울특별시'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('청년월세지원'), findsOneWidget);
   });
 
   testWidgets('Bottom navigation switches between map, report, and profile tabs',
@@ -320,7 +430,9 @@ void main() {
     expect(find.text('정책 어시스턴트'), findsOneWidget);
     expect(find.textContaining('환영해요'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('닫기'));
+    // Closed via the same floating button (now showing an X), not a header
+    // close button — the panel header has no close button of its own.
+    await tester.tap(find.byIcon(Icons.close));
     await tester.pumpAndSettle();
 
     expect(find.text('정책 어시스턴트'), findsNothing);
@@ -498,8 +610,6 @@ void main() {
     expect(find.text('김철수'), findsOneWidget);
     expect(find.text('한국과학기술원'), findsOneWidget);
     expect(find.text('홍길동'), findsNothing);
-    expect(find.text('관심지역'), findsOneWidget);
-    expect(find.text('부산광역시'), findsOneWidget);
   });
 
   testWidgets('Profile tab shows the selected interests, or an empty-state message',
@@ -537,91 +647,94 @@ void main() {
     expect(find.text('설정된 관심사가 없어요'), findsOneWidget);
   });
 
-  testWidgets(
-      'Adding/removing an interested region on the map syncs to the profile tab',
-      (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(400, 1400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  // 프로필 탭의 관심지역 섹션을 뺐다(지도에서 이미 지역별로 충분히 구분됨).
+  // 아래 두 테스트는 그 섹션/관리 진입점을 전제로 하는 시나리오라 지금은 맞지
+  // 않지만, 나중에 다시 쓸 수도 있어 주석으로 남겨둔다.
+  // testWidgets(
+  //     'Adding/removing an interested region on the map syncs to the profile tab',
+  //     (WidgetTester tester) async {
+  //   tester.view.physicalSize = const Size(400, 1400);
+  //   tester.view.devicePixelRatio = 1.0;
+  //   addTearDown(tester.view.resetPhysicalSize);
+  //   addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(MaterialApp(
-      home: HomeShell(
-        profile: UserProfile(
-          name: '홍길동',
-          email: 'test@example.com',
-          birthDate: DateTime(2000, 1, 1),
-          gender: '남성',
-          school: '한국대학교',
-          gpa: 4.0,
-          enrollmentStatus: '재학',
-          region: '서울특별시',
-          interestedRegions: ['부산광역시'],
-        ),
-      ),
-    ));
+  //   await tester.pumpWidget(MaterialApp(
+  //     home: HomeShell(
+  //       profile: UserProfile(
+  //         name: '홍길동',
+  //         email: 'test@example.com',
+  //         birthDate: DateTime(2000, 1, 1),
+  //         gender: '남성',
+  //         school: '한국대학교',
+  //         gpa: 4.0,
+  //         enrollmentStatus: '재학',
+  //         region: '서울특별시',
+  //         interestedRegions: ['부산광역시'],
+  //       ),
+  //     ),
+  //   ));
 
-    // Add 제주특별자치도 from the map screen's region picker.
-    await tester.tap(find.byIcon(Icons.add_location_alt_outlined));
-    await tester.pumpAndSettle();
-    await tester.tap(find.descendant(
-        of: find.byType(TossChipSelector), matching: find.text('제주특별자치도')));
-    await tester.pump();
-    await tester.tap(find.text('완료'));
-    await tester.pumpAndSettle();
+  //   // Add 제주특별자치도 from the map screen's region picker.
+  //   await tester.tap(find.byIcon(Icons.add_location_alt_outlined));
+  //   await tester.pumpAndSettle();
+  //   await tester.tap(find.descendant(
+  //       of: find.byType(TossChipSelector), matching: find.text('제주특별자치도')));
+  //   await tester.pump();
+  //   await tester.tap(find.text('완료'));
+  //   await tester.pumpAndSettle();
 
-    await tester.tap(find.text('프로필'));
-    await tester.pumpAndSettle();
-    expect(find.text('부산광역시'), findsOneWidget);
-    expect(find.text('제주특별자치도'), findsOneWidget);
+  //   await tester.tap(find.text('프로필'));
+  //   await tester.pumpAndSettle();
+  //   expect(find.text('부산광역시'), findsOneWidget);
+  //   expect(find.text('제주특별자치도'), findsOneWidget);
 
-    // Remove 부산광역시 from the map screen's region picker.
-    await tester.tap(find.text('지도'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.add_location_alt_outlined));
-    await tester.pumpAndSettle();
-    await tester.tap(find.descendant(
-        of: find.byType(TossChipSelector), matching: find.text('부산광역시')));
-    await tester.pump();
-    await tester.tap(find.text('완료'));
-    await tester.pumpAndSettle();
+  //   // Remove 부산광역시 from the map screen's region picker.
+  //   await tester.tap(find.text('지도'));
+  //   await tester.pumpAndSettle();
+  //   await tester.tap(find.byIcon(Icons.add_location_alt_outlined));
+  //   await tester.pumpAndSettle();
+  //   await tester.tap(find.descendant(
+  //       of: find.byType(TossChipSelector), matching: find.text('부산광역시')));
+  //   await tester.pump();
+  //   await tester.tap(find.text('완료'));
+  //   await tester.pumpAndSettle();
 
-    await tester.tap(find.text('프로필'));
-    await tester.pumpAndSettle();
-    expect(find.text('부산광역시'), findsNothing);
-    expect(find.text('제주특별자치도'), findsOneWidget);
-  });
+  //   await tester.tap(find.text('프로필'));
+  //   await tester.pumpAndSettle();
+  //   expect(find.text('부산광역시'), findsNothing);
+  //   expect(find.text('제주특별자치도'), findsOneWidget);
+  // });
 
-  testWidgets(
-      'Managing interested regions from the profile tab syncs to the map',
-      (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(400, 1400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  // testWidgets(
+  //     'Managing interested regions from the profile tab syncs to the map',
+  //     (WidgetTester tester) async {
+  //   tester.view.physicalSize = const Size(400, 1400);
+  //   tester.view.devicePixelRatio = 1.0;
+  //   addTearDown(tester.view.resetPhysicalSize);
+  //   addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(MaterialApp(
-      home: HomeShell(profile: sampleProfile(interestedRegions: const ['부산광역시'])),
-    ));
+  //   await tester.pumpWidget(MaterialApp(
+  //     home: HomeShell(profile: sampleProfile(interestedRegions: const ['부산광역시'])),
+  //   ));
 
-    await tester.tap(find.text('프로필'));
-    await tester.pumpAndSettle();
-    expect(find.text('부산광역시'), findsOneWidget);
+  //   await tester.tap(find.text('프로필'));
+  //   await tester.pumpAndSettle();
+  //   expect(find.text('부산광역시'), findsOneWidget);
 
-    // 관심지역 섹션의 "관리"가 첫 번째로 나온다 (관심사 섹션에도 같은 라벨이 있음).
-    await tester.tap(find.text('관리').first);
-    await tester.pumpAndSettle();
-    expect(find.text('관심지역 관리'), findsOneWidget);
+  //   // 관심지역 섹션의 "관리"가 첫 번째로 나온다 (관심사 섹션에도 같은 라벨이 있음).
+  //   await tester.tap(find.text('관리').first);
+  //   await tester.pumpAndSettle();
+  //   expect(find.text('관심지역 관리'), findsOneWidget);
 
-    await tester.tap(find.descendant(
-        of: find.byType(TossChipSelector), matching: find.text('제주특별자치도')));
-    await tester.pump();
-    await tester.tap(find.text('완료'));
-    await tester.pumpAndSettle();
+  //   await tester.tap(find.descendant(
+  //       of: find.byType(TossChipSelector), matching: find.text('제주특별자치도')));
+  //   await tester.pump();
+  //   await tester.tap(find.text('완료'));
+  //   await tester.pumpAndSettle();
 
-    expect(find.text('부산광역시'), findsOneWidget);
-    expect(find.text('제주특별자치도'), findsOneWidget);
-  });
+  //   expect(find.text('부산광역시'), findsOneWidget);
+  //   expect(find.text('제주특별자치도'), findsOneWidget);
+  // });
 
   testWidgets(
       'Chat panel shows the answer returned by the chat API',
@@ -787,7 +900,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('내 지역 청년 주거지원이 궁금해요'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.add_comment_outlined));
+    await tester.tap(find.byIcon(Icons.edit_square));
     await tester.pumpAndSettle();
 
     // Conversation was archived and the view reset to the empty state.
@@ -1032,49 +1145,19 @@ void main() {
       expect(item.period, isNull);
     });
 
-    test('supportAmount parses 만원/억원 units from free-text support content', () {
-      expect(PolicyItem.fromJson({'plcySprtCn': '월 20만원 지원'}).supportAmount, 200000);
-      expect(PolicyItem.fromJson({'plcySprtCn': '최대 300만원 지원'}).supportAmount, 3000000);
-      expect(PolicyItem.fromJson({'plcySprtCn': '보증금 1억원 지원'}).supportAmount, 100000000);
-      expect(PolicyItem.fromJson({'plcySprtCn': '1,000,000원 지급'}).supportAmount, 1000000);
-    });
-
-    test('supportAmount takes the largest figure when several are mentioned', () {
-      final item = PolicyItem.fromJson({'plcySprtCn': '월 20만원씩 최대 12개월(240만원)'});
-      expect(item.supportAmount, 2400000);
-    });
-
-    test('supportAmount is null when the text has no parseable amount', () {
-      expect(PolicyItem.fromJson({'plcySprtCn': '임대주택 제공'}).supportAmount, isNull);
+    test('supportAmount only uses the verified Supabase sprtAmtKrw value, never a text guess', () {
+      expect(PolicyItem.fromJson({'sprtAmtKrw': 5000000}).supportAmount, 5000000);
+      // Free-text mentions of an amount are never trustworthy enough to show
+      // as a real number — only the human-reviewed pipeline value counts.
+      expect(PolicyItem.fromJson({'plcySprtCn': '최대 300만원 지원'}).supportAmount, isNull);
       expect(const PolicyItem(name: '이름만 있는 정책').supportAmount, isNull);
     });
 
-    test('supportAmount prefers the Supabase-derived sprtAmtKrw over the regex guess', () {
-      final item = PolicyItem.fromJson({
-        'plcySprtCn': '최대 300만원 지원',
-        'sprtAmtKrw': 5000000,
-      });
-      expect(item.supportAmount, 5000000);
-    });
-
-    test('supportAmount falls back to the regex guess when sprtAmtKrw is absent', () {
-      final item = PolicyItem.fromJson({'plcySprtCn': '최대 300만원 지원'});
-      expect(item.supportAmount, 3000000);
-    });
-
     test('supportAmountLabel formats 만원/억원 for display', () {
-      expect(PolicyItem.fromJson({'plcySprtCn': '최대 300만원 지원'}).supportAmountLabel, '300만원');
       expect(PolicyItem.fromJson({'sprtAmtKrw': 150000000}).supportAmountLabel, '1억 5000만원');
       expect(PolicyItem.fromJson({'sprtAmtKrw': 100000000}).supportAmountLabel, '1억원');
       expect(PolicyItem.fromJson({}).supportAmountLabel, isNull);
-    });
-
-    test('supportAmountIsPrecise is true only when sprtAmtKrw is present', () {
-      expect(PolicyItem.fromJson({'sprtAmtKrw': 500000}).supportAmountIsPrecise, isTrue);
-      expect(
-        PolicyItem.fromJson({'plcySprtCn': '최대 300만원 지원'}).supportAmountIsPrecise,
-        isFalse,
-      );
+      expect(PolicyItem.fromJson({'plcySprtCn': '최대 300만원 지원'}).supportAmountLabel, isNull);
     });
 
     test('reads totCount from the pagination envelope', () {
@@ -1122,6 +1205,15 @@ void main() {
     test('matchesProfile defaults to true when age bounds are unknown', () {
       final item = PolicyItem.fromJson({'plcyNm': '전연령 정책'});
       expect(item.matchesProfile(sampleProfile()), isTrue);
+    });
+
+    test('ageMatches treats "0세 ~ 0세" as no age limit rather than newborns-only', () {
+      final item = PolicyItem.fromJson({
+        'plcyNm': '전 연령 대상 정책',
+        'sprtTrgtMinAge': '0',
+        'sprtTrgtMaxAge': '0',
+      });
+      expect(item.ageMatches(sampleProfile()), isTrue);
     });
 
     test('maxIncomePercent parses "중위소득 N% 이하" from free-text income info',
@@ -1198,6 +1290,81 @@ void main() {
       final item = PolicyItem.fromJson({'plcyNm': '상시 정책'});
       expect(item.isCurrentlyOpen, isTrue);
     });
+
+    test('matchingInterests finds interests mentioned in the policy text', () {
+      final item = PolicyItem.fromJson({
+        'plcyNm': '청년월세지원',
+        'plcyExplnCn': '무주택 청년의 주거 안정을 지원합니다',
+      });
+      expect(
+        item.matchingInterests(sampleProfile(interests: const ['주거', '금융'])),
+        ['주거'],
+      );
+      expect(item.matchesInterests(sampleProfile(interests: const ['주거'])), isTrue);
+      expect(item.matchesInterests(sampleProfile(interests: const ['금융'])), isFalse);
+      expect(item.matchesInterests(sampleProfile()), isFalse);
+    });
+
+    test('matchingInterests expands "복지문화" into its component keywords', () {
+      final item = PolicyItem.fromJson({'plcyNm': '정책', 'plcyExplnCn': '지역 문화 행사 지원'});
+      expect(
+        item.matchingInterests(sampleProfile(interests: const ['복지문화'])),
+        ['복지문화'],
+      );
+    });
+
+    test('categoryLabel normalizes spelling variants and comma-separated duplicates', () {
+      expect(
+        PolicyItem.fromJson({'plcyNm': '정책', 'lclsfNm': '금융･복지･문화'}).categoryLabel,
+        '복지문화',
+      );
+      expect(
+        PolicyItem.fromJson({'plcyNm': '정책', 'lclsfNm': '교육･직업훈련'}).categoryLabel,
+        '교육',
+      );
+      expect(
+        PolicyItem.fromJson({'plcyNm': '정책', 'lclsfNm': '일자리,교육'}).categoryLabel,
+        '일자리',
+      );
+      expect(
+        PolicyItem.fromJson({'plcyNm': '정책'}).categoryLabel,
+        isNull,
+      );
+    });
+  });
+
+  group('NotificationService', () {
+    // The plugin has no real OS host in the widget-test environment, so
+    // every call below hits its platform channel and fails internally —
+    // this only verifies that failure is swallowed (per NotificationService's
+    // defensive try/catch) rather than surfacing as an unhandled exception
+    // that would otherwise crash whatever scrap/unscrap flow triggered it.
+    test('scheduleDeadlineReminders does not throw when the policy has no deadline', () async {
+      const policy = PolicyItem(name: '상시 모집 정책');
+      await expectLater(
+        NotificationService.instance.scheduleDeadlineReminders(policy),
+        completes,
+      );
+    });
+
+    test('scheduleDeadlineReminders does not throw even without a platform host', () async {
+      final policy = PolicyItem(
+        name: '마감 임박 정책',
+        deadline: DateTime.now().add(const Duration(days: 10)),
+      );
+      await expectLater(
+        NotificationService.instance.scheduleDeadlineReminders(policy),
+        completes,
+      );
+    });
+
+    test('cancelDeadlineReminders does not throw even without a platform host', () async {
+      const policy = PolicyItem(name: '아무 정책');
+      await expectLater(
+        NotificationService.instance.cancelDeadlineReminders(policy),
+        completes,
+      );
+    });
   });
 
   testWidgets('Policy list sheet shows results and opens the detail page on tap',
@@ -1255,8 +1422,8 @@ void main() {
           'result': {
             'pagging': {'totCount': 2},
             'youthPolicyList': [
-              {'plcyNm': '소액 지원금', 'plcySprtCn': '월 10만원 지원'},
-              {'plcyNm': '고액 지원금', 'plcySprtCn': '최대 500만원 지원'},
+              {'plcyNm': '소액 지원금', 'sprtAmtKrw': 100000},
+              {'plcyNm': '고액 지원금', 'sprtAmtKrw': 5000000},
             ],
           },
         }),
@@ -1290,15 +1457,16 @@ void main() {
     expect(cardTitles, ['고액 지원금', '소액 지원금']);
   });
 
-  testWidgets('Policy list sheet flags a policy whose age range excludes the user',
+  testWidgets('Policy list sheet defaults to policies the user is actually eligible for',
       (WidgetTester tester) async {
     final mockClient = MockClient((request) async {
       return http.Response(
         jsonEncode({
           'result': {
-            'pagging': {'totCount': 1},
+            'pagging': {'totCount': 2},
             'youthPolicyList': [
               {'plcyNm': '중장년 전용 정책', 'sprtTrgtMinAge': '40', 'sprtTrgtMaxAge': '60'},
+              {'plcyNm': '청년월세지원', 'sprtTrgtMinAge': '19', 'sprtTrgtMaxAge': '34'},
             ],
           },
         }),
@@ -1319,7 +1487,11 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('나이 조건 미충족'), findsOneWidget);
+    // Age-ineligible policy is excluded from the default list entirely,
+    // not just flagged with a badge.
+    expect(find.text('서울특별시 정책 1건'), findsOneWidget);
+    expect(find.text('청년월세지원'), findsOneWidget);
+    expect(find.text('중장년 전용 정책'), findsNothing);
   });
 
   testWidgets('Policy detail screen notes whether the user\'s age fits the policy',
@@ -1333,6 +1505,99 @@ void main() {
     ));
 
     expect(find.textContaining('조건에 맞지 않아요'), findsOneWidget);
+  });
+
+  testWidgets('Policy list sheet shows category labels and filters by category chip',
+      (WidgetTester tester) async {
+    final mockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'result': {
+            'pagging': {'totCount': 2},
+            'youthPolicyList': [
+              {'plcyNm': '청년월세지원', 'lclsfNm': '주거'},
+              {'plcyNm': '취업역량강화', 'lclsfNm': '교육･직업훈련'},
+            ],
+          },
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: PolicyListSheet(
+          region: '서울특별시',
+          profile: sampleProfile(),
+          onProfileUpdated: (_) {},
+          policyApiService: PolicyApiService(client: mockClient),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // Both cards show their normalized category label, plus the matching
+    // filter chip above — so each label text appears twice (chip + card).
+    expect(find.text('주거'), findsNWidgets(2));
+    // '교육･직업훈련' normalizes down to '교육'.
+    expect(find.text('교육'), findsNWidgets(2));
+    expect(find.text('전체'), findsOneWidget);
+
+    await tester.tap(find.text('주거').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('청년월세지원'), findsOneWidget);
+    expect(find.text('취업역량강화'), findsNothing);
+    // Only the filter chip remains once the card for the other category is gone.
+    expect(find.text('주거'), findsNWidgets(2));
+
+    await tester.tap(find.text('전체'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('청년월세지원'), findsOneWidget);
+    expect(find.text('취업역량강화'), findsOneWidget);
+  });
+
+  testWidgets('Policy list sheet badges and filters policies matching the user\'s interests',
+      (WidgetTester tester) async {
+    final mockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'result': {
+            'pagging': {'totCount': 2},
+            'youthPolicyList': [
+              {'plcyNm': '청년월세지원', 'plcyExplnCn': '무주택 청년의 주거 안정을 지원합니다'},
+              {'plcyNm': '취업역량강화', 'plcyExplnCn': '취업 준비생을 위한 프로그램'},
+            ],
+          },
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: PolicyListSheet(
+          region: '서울특별시',
+          profile: sampleProfile(interests: const ['주거']),
+          onProfileUpdated: (_) {},
+          policyApiService: PolicyApiService(client: mockClient),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // The badge doesn't show until the user actually turns on "내 관심사만".
+    expect(find.text('관심사: 주거'), findsNothing);
+
+    await tester.tap(find.text('내 관심사만'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('청년월세지원'), findsOneWidget);
+    expect(find.text('취업역량강화'), findsNothing);
+    expect(find.text('관심사: 주거'), findsOneWidget);
   });
 
   testWidgets('Policy list sheet shows the connection error message on failure',
@@ -1615,6 +1880,19 @@ void main() {
 
     expect(find.text('충족률이 100%가 아닌 이유'), findsOneWidget);
     expect(find.textContaining('나이 조건이 맞지 않는 정책 1건'), findsOneWidget);
+
+    await tester.ensureVisible(find.textContaining('해당 정책 1건 보기'));
+    await tester.tap(find.textContaining('해당 정책 1건 보기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('충족 안 되는 정책 1건'), findsOneWidget);
+    expect(find.text('고령자 지원금'), findsOneWidget);
+    expect(find.textContaining('나이 조건 불충족'), findsOneWidget);
+
+    await tester.tap(find.text('고령자 지원금'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('정책 상세'), findsOneWidget);
   });
 
   testWidgets('Report tab hides the match-gap notice when the match rate is 100%',

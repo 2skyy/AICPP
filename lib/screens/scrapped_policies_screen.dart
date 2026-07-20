@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../models/policy_item.dart';
 import '../models/user_profile.dart';
+import '../services/notification_service.dart';
 import '../theme/toss_colors.dart';
 import 'policy_detail_screen.dart';
 
@@ -35,6 +38,7 @@ class _ScrappedPoliciesScreenState extends State<ScrappedPoliciesScreen> {
     final updated =
         _profile.scrappedPolicies.where((p) => (p.policyNo ?? p.name) != id).toList();
     _updateProfile(_profile.copyWith(scrappedPolicies: updated));
+    unawaited(NotificationService.instance.cancelDeadlineReminders(policy));
   }
 
   @override

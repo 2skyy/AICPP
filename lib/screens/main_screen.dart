@@ -215,8 +215,10 @@ class _MainScreenState extends State<MainScreen> {
               Expanded(
                 child: naverMapClientId.isEmpty || !isNaverMapSupportedPlatform
                     ? _NaverMapPlaceholder(
-                        regions: _interestedRegions.toList(),
+                        homeRegion: profile.region,
+                        interestedRegions: _interestedRegions.toList(),
                         unsupportedPlatform: !isNaverMapSupportedPlatform,
+                        onRegionTap: _openPolicyListSheet,
                       )
                     : ClipRRect(
                         borderRadius: BorderRadius.circular(16),
@@ -295,11 +297,15 @@ class _LegendItem extends StatelessWidget {
 
 class _NaverMapPlaceholder extends StatelessWidget {
   const _NaverMapPlaceholder({
-    required this.regions,
+    required this.homeRegion,
+    required this.interestedRegions,
+    required this.onRegionTap,
     this.unsupportedPlatform = false,
   });
 
-  final List<String> regions;
+  final String homeRegion;
+  final List<String> interestedRegions;
+  final ValueChanged<String> onRegionTap;
   final bool unsupportedPlatform;
 
   @override
@@ -327,7 +333,7 @@ class _NaverMapPlaceholder extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             unsupportedPlatform
-                ? '네이버 지도는 Android/iOS에서만 지원돼요\n지금 실행 중인 플랫폼에서는 표시되지 않습니다'
+                ? '네이버 지도는 Android/iOS에서만 지원돼요\n아래 지역을 눌러 정책을 확인해보세요'
                 : 'Naver Cloud Platform Client ID를 등록하면\n이 자리에 실제 지도가 표시됩니다',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 13, color: TossColors.textSecondary),
@@ -337,16 +343,41 @@ class _NaverMapPlaceholder extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             alignment: WrapAlignment.center,
-            children: regions
-                .map((region) => Chip(
-                      label: Text(region),
-                      backgroundColor: Colors.white,
-                      side: BorderSide.none,
-                    ))
-                .toList(),
+            children: [
+              _RegionChip(
+                label: homeRegion,
+                color: _homeRegionColor,
+                onTap: () => onRegionTap(homeRegion),
+              ),
+              for (final region in interestedRegions)
+                _RegionChip(
+                  label: region,
+                  color: _interestedRegionColor,
+                  onTap: () => onRegionTap(region),
+                ),
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RegionChip extends StatelessWidget {
+  const _RegionChip({required this.label, required this.color, required this.onTap});
+
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      label: Text(label),
+      avatar: Icon(Icons.circle, size: 10, color: color),
+      backgroundColor: Colors.white,
+      side: BorderSide.none,
+      onPressed: onTap,
     );
   }
 }

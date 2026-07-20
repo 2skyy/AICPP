@@ -217,7 +217,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
     final categoryCounts = <String, int>{};
     for (final item in matchedItems) {
-      final category = item.category ?? '기타';
+      final category = item.categoryLabel ?? '기타';
       categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
     }
 
@@ -299,9 +299,11 @@ class _ReportScreenState extends State<ReportScreen> {
         const SizedBox(height: 24),
         _MatchGapNotice(
           profile: widget.profile,
+          onProfileUpdated: widget.onProfileUpdated,
           ageMismatchCount: ageMismatchCount,
           incomeMismatchCount: incomeMismatchCount,
           hasUnassessedIncomeConditions: hasUnassessedIncome,
+          unmatchedItems: items.where((item) => !item.matchesProfile(widget.profile)).toList(),
         ),
       ],
     ];
@@ -490,15 +492,32 @@ class _CategoryDonut extends StatelessWidget {
 class _MatchGapNotice extends StatelessWidget {
   const _MatchGapNotice({
     required this.profile,
+    required this.onProfileUpdated,
     required this.ageMismatchCount,
     required this.incomeMismatchCount,
     required this.hasUnassessedIncomeConditions,
+    required this.unmatchedItems,
   });
 
   final UserProfile profile;
+  final ValueChanged<UserProfile> onProfileUpdated;
   final int ageMismatchCount;
   final int incomeMismatchCount;
   final bool hasUnassessedIncomeConditions;
+  final List<PolicyItem> unmatchedItems;
+
+  void _showUnmatchedPolicies(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _UnmatchedPoliciesSheet(
+        items: unmatchedItems,
+        profile: profile,
+        onProfileUpdated: onProfileUpdated,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -538,8 +557,113 @@ class _MatchGapNotice extends StatelessWidget {
                   style: const TextStyle(fontSize: 12, color: TossColors.textSecondary),
                 ),
               )),
+          if (unmatchedItems.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            GestureDetector(
+              onTap: () => _showUnmatchedPolicies(context),
+              child: Text(
+                '해당 정책 ${unmatchedItems.length}건 보기 →',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: TossColors.primary,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _UnmatchedPoliciesSheet extends StatelessWidget {
+  const _UnmatchedPoliciesSheet({
+    required this.items,
+    required this.profile,
+    required this.onProfileUpdated,
+  });
+
+  final List<PolicyItem> items;
+  final UserProfile profile;
+  final ValueChanged<UserProfile> onProfileUpdated;
+
+  String _reasonFor(PolicyItem item) {
+    final reasons = <String>[
+      if (!item.ageMatches(profile)) '나이 조건',
+      if (!item.incomeMatches(profile)) '소득 조건',
+    ];
+    return '${reasons.join(', ')} 불충족';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: TossColors.background,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '충족 안 되는 정책 ${items.length}건',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: TossColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: Material(
+                  color: Colors.transparent,
+                  child: ListView.builder(
+                    controller: scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          item.name,
+                          style: const TextStyle(fontWeight: FontWeight.w600, color: TossColors.textPrimary),
+                        ),
+                        subtitle: Text(
+                          _reasonFor(item),
+                          style: const TextStyle(fontSize: 12, color: TossColors.error),
+                        ),
+                        trailing: const Icon(Icons.chevron_right, color: TossColors.textSecondary),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => PolicyDetailScreen(
+                              policy: item,
+                              profile: profile,
+                              onProfileUpdated: onProfileUpdated,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

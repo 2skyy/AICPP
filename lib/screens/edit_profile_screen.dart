@@ -15,7 +15,8 @@ import '../widgets/toss_chip_selector.dart';
 import '../widgets/toss_text_field.dart';
 
 const _genderOptions = ['남성', '여성'];
-const _enrollmentOptions = ['재학', '휴학', '졸업', '졸업유예'];
+const _enrollmentOptions = ['재학', '휴학', '졸업', '졸업유예', '해당없음'];
+const _militaryServiceOptions = ['군필', '미필', '공익', '면제'];
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key, required this.profile});
@@ -39,6 +40,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   late DateTime? _birthDate = widget.profile.birthDate;
   late String? _gender = widget.profile.gender.isEmpty ? null : widget.profile.gender;
+  late String? _militaryServiceStatus = widget.profile.militaryServiceStatus;
   late String? _enrollmentStatus =
       widget.profile.enrollmentStatus.isEmpty ? null : widget.profile.enrollmentStatus;
   late String? _region = widget.profile.region.isEmpty ? null : widget.profile.region;
@@ -107,13 +109,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return _birthDate == null ? '생년월일을 선택해주세요' : null;
   }
 
+  bool get _isSchoolApplicable => _enrollmentStatus != '해당없음';
+
   String? get _schoolError {
-    if (!_showErrors) return null;
+    if (!_showErrors || !_isSchoolApplicable) return null;
     return _schoolController.text.trim().isEmpty ? '학교를 입력해주세요' : null;
   }
 
   String? get _gpaError {
-    if (!_showErrors) return null;
+    if (!_showErrors || !_isSchoolApplicable) return null;
     if (_gpaController.text.isEmpty) return '학점을 입력해주세요';
     return Validators.isValidGpa(_gpaController.text) ? null : '0~4.5 사이로 입력해주세요';
   }
@@ -129,8 +133,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _nameController.text.trim().isNotEmpty &&
       Validators.isValidEmail(_emailController.text) &&
       _birthDate != null &&
-      _schoolController.text.trim().isNotEmpty &&
-      Validators.isValidGpa(_gpaController.text) &&
+      (!_isSchoolApplicable ||
+          (_schoolController.text.trim().isNotEmpty &&
+              Validators.isValidGpa(_gpaController.text))) &&
       _gender != null &&
       _enrollmentStatus != null &&
       _region != null;
@@ -144,13 +149,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       email: _emailController.text,
       birthDate: _birthDate,
       gender: _gender,
-      school: _schoolController.text.trim(),
-      gpa: double.parse(_gpaController.text),
+      school: _isSchoolApplicable ? _schoolController.text.trim() : '',
+      gpa: _isSchoolApplicable ? double.parse(_gpaController.text) : 0,
       enrollmentStatus: _enrollmentStatus,
       region: _region,
       interests: _interests.toList(),
       householdSize: _householdSize,
       monthlyIncome: _monthlyIncome,
+      militaryServiceStatus: _gender == '남성' ? _militaryServiceStatus : null,
     );
 
     Navigator.of(context).pop(updated);
@@ -202,31 +208,48 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 errorText: _genderError,
                 onToggle: (value) => setState(() => _gender = value),
               ),
-              const SizedBox(height: 20),
-              TossAutocompleteField(
-                label: '학교',
-                options: kUniversities,
-                controller: _schoolController,
-                focusNode: _schoolFocusNode,
-                errorText: _schoolError,
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 20),
-              TossTextField(
-                label: '학점 (4.5 만점)',
-                controller: _gpaController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                errorText: _gpaError,
-                onChanged: (_) => setState(() {}),
-                inputFormatters: [GpaInputFormatter()],
-              ),
+              if (_gender == '남성') ...[
+                const SizedBox(height: 20),
+                TossChipSelector(
+                  label: '병역',
+                  options: _militaryServiceOptions,
+                  selected: _militaryServiceStatus == null ? {} : {_militaryServiceStatus!},
+                  onToggle: (value) => setState(() => _militaryServiceStatus = value),
+                ),
+              ],
+              if (_isSchoolApplicable) ...[
+                const SizedBox(height: 20),
+                TossAutocompleteField(
+                  label: '학교',
+                  options: kUniversities,
+                  controller: _schoolController,
+                  focusNode: _schoolFocusNode,
+                  errorText: _schoolError,
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 20),
+                TossTextField(
+                  label: '학점 (4.5 만점)',
+                  controller: _gpaController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  errorText: _gpaError,
+                  onChanged: (_) => setState(() {}),
+                  inputFormatters: [GpaInputFormatter()],
+                ),
+              ],
               const SizedBox(height: 20),
               TossChipSelector(
                 label: '재학상태',
                 options: _enrollmentOptions,
                 selected: _enrollmentStatus == null ? {} : {_enrollmentStatus!},
                 errorText: _enrollmentError,
-                onToggle: (value) => setState(() => _enrollmentStatus = value),
+                onToggle: (value) => setState(() {
+                  _enrollmentStatus = value;
+                  if (value == '해당없음') {
+                    _schoolController.clear();
+                    _gpaController.clear();
+                  }
+                }),
               ),
               const SizedBox(height: 20),
               TossChipSelector(

@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: aicpp-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ONTONG_API_KEY
+        sync: false
+      - key: NEWSAPI_KEY
+        sync: false
+      - key: DB_URL
+        sync: false

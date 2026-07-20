@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/policy_item.dart';
 import '../models/user_profile.dart';
+import '../services/notification_service.dart';
 import '../theme/toss_colors.dart';
 
 class PolicyDetailScreen extends StatefulWidget {
@@ -70,6 +73,12 @@ class _PolicyDetailScreenState extends State<PolicyDetailScreen> {
         : [...profile.scrappedPolicies, policy];
     setState(() => _isScrapped = !_isScrapped);
     onProfileUpdated(profile.copyWith(scrappedPolicies: updated));
+
+    if (_isScrapped) {
+      unawaited(NotificationService.instance.scheduleDeadlineReminders(policy));
+    } else {
+      unawaited(NotificationService.instance.cancelDeadlineReminders(policy));
+    }
   }
 
   @override
@@ -132,7 +141,7 @@ class _PolicyDetailScreenState extends State<PolicyDetailScreen> {
               _DetailSection(label: '신청기간', content: policy.period ?? '상시'),
               if (policy.supportAmountLabel != null)
                 _DetailSection(
-                  label: policy.supportAmountIsPrecise ? '지원금액' : '지원금액 (추정)',
+                  label: '지원금액',
                   content: policy.supportAmountLabel!,
                 ),
               if (policy.supportContent != null)
