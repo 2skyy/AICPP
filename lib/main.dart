@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'config/naver_map_config.dart';
 import 'screens/login_screen.dart';
+import 'services/auth_api_service.dart';
+import 'services/profile_api_service.dart';
 import 'theme/toss_colors.dart';
 
 void main() async {
@@ -13,7 +15,10 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.authApiService, this.profileApiService});
+
+  final AuthApiService? authApiService;
+  final ProfileApiService? profileApiService;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +33,7 @@ class MyApp extends StatelessWidget {
           primary: TossColors.primary,
         ),
       ),
-      home: const LoginScreen(),
+      home: LoginScreen(authApiService: authApiService, profileApiService: profileApiService),
     );
   }
 }

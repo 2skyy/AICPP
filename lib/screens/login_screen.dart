@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import '../models/user_profile.dart';
+import '../services/auth_api_service.dart';
+import '../services/profile_api_service.dart';
 import '../theme/toss_colors.dart';
 import '../widgets/social_login_button.dart';
 import '../widgets/toss_button.dart';
 import '../widgets/toss_text_field.dart';
 import 'home_shell.dart';
+import 'profile_setup_screen.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.authApiService, this.profileApiService});
+
+  final AuthApiService? authApiService;
+  final ProfileApiService? profileApiService;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -18,9 +23,15 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  late final _authApiService = widget.authApiService ?? AuthApiService();
+  late final _profileApiService = widget.profileApiService ?? ProfileApiService();
+
+  bool _isSubmitting = false;
 
   bool get _canSubmit =>
-      _emailController.text.isNotEmpty && _passwordController.text.isNotEmpty;
+      !_isSubmitting &&
+      _emailController.text.isNotEmpty &&
+      _passwordController.text.isNotEmpty;
 
   @override
   void dispose() {
@@ -29,25 +40,41 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _login() {
-    final email = _emailController.text;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => HomeShell(
-          profile: UserProfile(
-            name: email.split('@').first,
-            email: email,
-            birthDate: null,
-            gender: '',
-            school: '',
-            gpa: 0,
-            enrollmentStatus: '',
-            region: '서울특별시',
-            interestedRegions: const [],
+  Future<void> _login() async {
+    setState(() => _isSubmitting = true);
+    try {
+      final session = await _authApiService.login(
+        _emailController.text,
+        _passwordController.text,
+      );
+      final profile =
+          await _profileApiService.fetchProfile(session.accessToken, email: session.email);
+      if (!mounted) return;
+
+      if (profile != null) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => HomeShell(profile: profile, profileApiService: widget.profileApiService),
           ),
-        ),
-      ),
-    );
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => ProfileSetupScreen(
+              name: session.email.split('@').first,
+              email: session.email,
+              accessToken: session.accessToken,
+              profileApiService: widget.profileApiService,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   void _showComingSoon(String provider) {
@@ -146,7 +173,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: TextButton(
                   onPressed: () {
                     Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SignupScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => SignupScreen(
+                          authApiService: widget.authApiService,
+                          profileApiService: widget.profileApiService,
+                        ),
+                      ),
                     );
                   },
                   child: const Text(

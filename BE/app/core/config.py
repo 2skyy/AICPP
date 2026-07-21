@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     database_url: str | None = Field(default=None, validation_alias="DB_URL")
     supabase_url: str | None = Field(default=None, validation_alias="SUPABASE_URL")
     supabase_anon_key: str | None = Field(default=None, validation_alias="SUPABASE_ANON_KEY")
+    supabase_secret_key: str | None = Field(default=None, validation_alias="SUPABASE_SECRET_KEY")
 
     model_config = SettingsConfigDict(
         env_file=ENV_FILE,

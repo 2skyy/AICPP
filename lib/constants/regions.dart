@@ -20,6 +20,32 @@ const List<String> kRegions = [
   '제주특별자치도',
 ];
 
+/// 백엔드 `regions` 테이블의 시/도 코드(온통청년 API 지역코드와 동일).
+/// 프로필 저장 시 지역명을 이 코드로 변환해서 보낸다.
+const Map<String, String> kRegionCodeByName = {
+  '서울특별시': '11',
+  '부산광역시': '26',
+  '대구광역시': '27',
+  '인천광역시': '28',
+  '광주광역시': '29',
+  '대전광역시': '30',
+  '울산광역시': '31',
+  '세종특별자치시': '36',
+  '경기도': '41',
+  '충청북도': '43',
+  '충청남도': '44',
+  '전라남도': '46',
+  '경상북도': '47',
+  '경상남도': '48',
+  '제주특별자치도': '50',
+  '강원특별자치도': '51',
+  '전북특별자치도': '52',
+};
+
+final Map<String, String> kRegionNameByCode = {
+  for (final entry in kRegionCodeByName.entries) entry.value: entry.key,
+};
+
 const Map<String, NLatLng> kRegionCoordinates = {
   '서울특별시': NLatLng(37.5665, 126.9780),
   '부산광역시': NLatLng(35.1796, 129.0756),

@@ -4,6 +4,7 @@ import '../constants/median_income.dart';
 import '../constants/regions.dart';
 import '../constants/universities.dart';
 import '../models/user_profile.dart';
+import '../services/profile_api_service.dart';
 import '../theme/toss_colors.dart';
 import '../utils/age.dart';
 import '../utils/gpa_input_formatter.dart';
@@ -20,10 +21,18 @@ const _enrollmentOptions = ['재학', '휴학', '졸업', '졸업유예', '해�
 const _militaryServiceOptions = ['군필', '미필', '공익', '면제'];
 
 class ProfileSetupScreen extends StatefulWidget {
-  const ProfileSetupScreen({super.key, required this.name, required this.email});
+  const ProfileSetupScreen({
+    super.key,
+    required this.name,
+    required this.email,
+    required this.accessToken,
+    this.profileApiService,
+  });
 
   final String name;
   final String email;
+  final String accessToken;
+  final ProfileApiService? profileApiService;
 
   @override
   State<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
@@ -44,8 +53,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final Set<String> _interestedRegions = {};
   final Set<String> _interests = {};
   int? _householdSize;
+  late final _profileApiService = widget.profileApiService ?? ProfileApiService();
 
   bool _showErrors = false;
+  bool _isSubmitting = false;
 
   int? get _monthlyIncome => int.tryParse(_monthlyIncomeController.text);
 
@@ -123,9 +134,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       _region != null &&
       _interestedRegions.isNotEmpty;
 
-  void _submit() {
+  Future<void> _submit() async {
     setState(() => _showErrors = true);
-    if (!_canSubmit) return;
+    if (!_canSubmit || _isSubmitting) return;
 
     final profile = UserProfile(
       name: widget.name,
@@ -141,11 +152,25 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       householdSize: _householdSize,
       monthlyIncome: _monthlyIncome,
       militaryServiceStatus: _gender == '남성' ? _militaryServiceStatus : null,
+      accessToken: widget.accessToken,
     );
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => HomeShell(profile: profile)),
-    );
+    setState(() => _isSubmitting = true);
+    try {
+      await _profileApiService.saveProfile(widget.accessToken, profile);
+      await _profileApiService.saveInterestedRegions(widget.accessToken, profile.interestedRegions);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => HomeShell(profile: profile, profileApiService: widget.profileApiService),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override

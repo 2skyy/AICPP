@@ -14,10 +14,12 @@ import 'package:aicpp/screens/policy_detail_screen.dart';
 import 'package:aicpp/screens/profile_setup_screen.dart';
 import 'package:aicpp/screens/report_screen.dart';
 import 'package:aicpp/screens/scrapped_policies_screen.dart';
+import 'package:aicpp/services/auth_api_service.dart';
 import 'package:aicpp/services/chat_api_service.dart';
 import 'package:aicpp/services/news_api_service.dart';
 import 'package:aicpp/services/notification_service.dart';
 import 'package:aicpp/services/policy_api_service.dart';
+import 'package:aicpp/services/profile_api_service.dart';
 import 'package:aicpp/widgets/chat_panel.dart';
 import 'package:aicpp/widgets/policy_list_sheet.dart';
 import 'package:aicpp/widgets/toss_chip_selector.dart';
@@ -69,7 +71,37 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MyApp());
+    final authMockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({'access_token': 'tok', 'user_id': 'user-1', 'email': 'test@example.com'}),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final profileMockClient = MockClient((request) async {
+      if (request.url.path.endsWith('/interest-regions')) {
+        return http.Response('{"region_codes": []}', 200,
+            headers: {'content-type': 'application/json'});
+      }
+      return http.Response(
+        jsonEncode({
+          'name': '홍길동',
+          'birth_date': '2000-01-01',
+          'gender_code': '남성',
+          'residence_region_code': '11',
+          'school_name': '한국대학교',
+          'gpa': 4.0,
+          'education_status_code': '재학',
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    await tester.pumpWidget(MyApp(
+      authApiService: AuthApiService(client: authMockClient),
+      profileApiService: ProfileApiService(client: profileMockClient),
+    ));
 
     final fields = find.byType(TextField);
     await tester.enterText(fields.at(0), 'test@example.com');
@@ -111,7 +143,29 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const MyApp());
+    final authMockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({'access_token': 'tok', 'user_id': 'user-1', 'email': 'test@example.com'}),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final profileMockClient = MockClient((request) async {
+      if (request.url.path.endsWith('/interest-regions')) {
+        return http.Response('{"region_codes": []}', 200,
+            headers: {'content-type': 'application/json'});
+      }
+      return http.Response(
+        jsonEncode({'name': '홍길동'}),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    await tester.pumpWidget(MyApp(
+      authApiService: AuthApiService(client: authMockClient),
+      profileApiService: ProfileApiService(client: profileMockClient),
+    ));
     await tester.ensureVisible(find.text('회원가입'));
     await tester.tap(find.text('회원가입'));
     await tester.pumpAndSettle();
@@ -170,7 +224,7 @@ void main() {
       'Profile setup computes an income bracket from household size and monthly income',
       (WidgetTester tester) async {
     await tester.pumpWidget(const MaterialApp(
-      home: ProfileSetupScreen(name: '홍길동', email: 'test@example.com'),
+      home: ProfileSetupScreen(name: '홍길동', email: 'test@example.com', accessToken: 'test-token'),
     ));
 
     expect(find.text('가구원수'), findsOneWidget);
@@ -205,7 +259,7 @@ void main() {
       'Profile setup only shows the 병역 selector when 남성 is selected',
       (WidgetTester tester) async {
     await tester.pumpWidget(const MaterialApp(
-      home: ProfileSetupScreen(name: '홍길동', email: 'test@example.com'),
+      home: ProfileSetupScreen(name: '홍길동', email: 'test@example.com', accessToken: 'test-token'),
     ));
 
     expect(find.text('병역'), findsNothing);
@@ -228,7 +282,7 @@ void main() {
       'Profile setup hides and clears school/GPA when 재학상태 is set to 해당없음',
       (WidgetTester tester) async {
     await tester.pumpWidget(const MaterialApp(
-      home: ProfileSetupScreen(name: '홍길동', email: 'test@example.com'),
+      home: ProfileSetupScreen(name: '홍길동', email: 'test@example.com', accessToken: 'test-token'),
     ));
 
     // TextField 순서: 생년월일(0), 학교(1), 학점(2), 월 소득(3).
@@ -2100,7 +2154,7 @@ void main() {
   testWidgets('GPA field blocks values above 4.5 and rounds to two decimals',
       (WidgetTester tester) async {
     await tester.pumpWidget(const MaterialApp(
-      home: ProfileSetupScreen(name: '홍길동', email: 'test@example.com'),
+      home: ProfileSetupScreen(name: '홍길동', email: 'test@example.com', accessToken: 'test-token'),
     ));
 
     final gpaField = find.byType(TextField).at(2);

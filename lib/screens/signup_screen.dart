@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/auth_api_service.dart';
+import '../services/profile_api_service.dart';
 import '../theme/toss_colors.dart';
 import '../utils/validators.dart';
 import '../widgets/toss_button.dart';
@@ -6,7 +8,10 @@ import '../widgets/toss_text_field.dart';
 import 'profile_setup_screen.dart';
 
 class SignupScreen extends StatefulWidget {
-  const SignupScreen({super.key});
+  const SignupScreen({super.key, this.authApiService, this.profileApiService});
+
+  final AuthApiService? authApiService;
+  final ProfileApiService? profileApiService;
 
   @override
   State<SignupScreen> createState() => _SignupScreenState();
@@ -17,8 +22,10 @@ class _SignupScreenState extends State<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _passwordConfirmController = TextEditingController();
+  late final _authApiService = widget.authApiService ?? AuthApiService();
 
   bool _showErrors = false;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -56,22 +63,39 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   bool get _canSubmit =>
+      !_isSubmitting &&
       _nameController.text.trim().isNotEmpty &&
       Validators.isValidEmail(_emailController.text) &&
       Validators.isValidPassword(_passwordController.text) &&
       _passwordConfirmController.text == _passwordController.text;
 
-  void _submit() {
+  Future<void> _submit() async {
     setState(() => _showErrors = true);
     if (!_canSubmit) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ProfileSetupScreen(
-          name: _nameController.text.trim(),
-          email: _emailController.text,
+
+    setState(() => _isSubmitting = true);
+    try {
+      final session = await _authApiService.signUp(
+        _emailController.text,
+        _passwordController.text,
+      );
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ProfileSetupScreen(
+            name: _nameController.text.trim(),
+            email: session.email,
+            accessToken: session.accessToken,
+            profileApiService: widget.profileApiService,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override

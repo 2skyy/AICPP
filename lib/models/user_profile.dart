@@ -18,6 +18,7 @@ class UserProfile {
     this.householdSize,
     this.monthlyIncome,
     this.militaryServiceStatus,
+    this.accessToken,
   });
 
   final String name;
@@ -41,6 +42,10 @@ class UserProfile {
   /// 병역 이행 여부 ('군필' | '미필' | '공익' | '면제'). 남성일 때만 입력받으며,
   /// 그 외에는 null.
   final String? militaryServiceStatus;
+
+  /// 백엔드 API 인증에 쓰는 Supabase 세션 토큰. 로그인/회원가입 성공 시에만
+  /// 채워지며, 앱을 재시작하면 다시 로그인해야 한다(세션을 기기에 저장하지 않음).
+  final String? accessToken;
 
   bool isScrapped(PolicyItem policy) {
     final id = policy.policyNo ?? policy.name;
@@ -82,6 +87,7 @@ class UserProfile {
     int? householdSize,
     int? monthlyIncome,
     String? militaryServiceStatus,
+    String? accessToken,
   }) {
     return UserProfile(
       name: name ?? this.name,
@@ -98,6 +104,7 @@ class UserProfile {
       householdSize: householdSize ?? this.householdSize,
       monthlyIncome: monthlyIncome ?? this.monthlyIncome,
       militaryServiceStatus: militaryServiceStatus ?? this.militaryServiceStatus,
+      accessToken: accessToken ?? this.accessToken,
     );
   }
 }

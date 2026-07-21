@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
 import '../services/chat_api_service.dart';
 import '../services/news_api_service.dart';
 import '../services/policy_api_service.dart';
+import '../services/profile_api_service.dart';
 import '../theme/toss_colors.dart';
 import '../widgets/chat_panel.dart';
 import 'main_screen.dart';
@@ -17,6 +20,7 @@ class HomeShell extends StatefulWidget {
     this.reportPolicyApiService,
     this.reportNewsApiService,
     this.chatApiService,
+    this.profileApiService,
   });
 
   final UserProfile profile;
@@ -24,6 +28,7 @@ class HomeShell extends StatefulWidget {
   final PolicyApiService? reportPolicyApiService;
   final NewsApiService? reportNewsApiService;
   final ChatApiService? chatApiService;
+  final ProfileApiService? profileApiService;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -33,6 +38,7 @@ class _HomeShellState extends State<HomeShell> {
   int _currentIndex = 0;
   bool _chatOpen = false;
   late UserProfile _profile = widget.profile;
+  late final _profileApiService = widget.profileApiService ?? ProfileApiService();
 
   void _updateProfile(UserProfile updated) {
     setState(() => _profile = updated);
@@ -40,6 +46,14 @@ class _HomeShellState extends State<HomeShell> {
 
   void _handleInterestedRegionsChanged(List<String> regions) {
     _updateProfile(_profile.copyWith(interestedRegions: regions));
+    final accessToken = _profile.accessToken;
+    if (accessToken != null) {
+      // 실패해도 로컬 상태는 이미 반영됐고, 이전에도 관심지역은 저장이 안 되던
+      // 값이라 실패가 곧 회귀는 아니다 — 그래서 조용히 무시한다.
+      unawaited(_profileApiService.saveInterestedRegions(accessToken, regions).catchError((_) {
+        return regions;
+      }));
+    }
   }
 
   void _toggleChat() {

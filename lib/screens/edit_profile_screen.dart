@@ -4,6 +4,7 @@ import '../constants/median_income.dart';
 import '../constants/regions.dart';
 import '../constants/universities.dart';
 import '../models/user_profile.dart';
+import '../services/profile_api_service.dart';
 import '../theme/toss_colors.dart';
 import '../utils/age.dart';
 import '../utils/gpa_input_formatter.dart';
@@ -19,9 +20,10 @@ const _enrollmentOptions = ['재학', '휴학', '졸업', '졸업유예', '해�
 const _militaryServiceOptions = ['군필', '미필', '공익', '면제'];
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({super.key, required this.profile});
+  const EditProfileScreen({super.key, required this.profile, this.profileApiService});
 
   final UserProfile profile;
+  final ProfileApiService? profileApiService;
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -46,8 +48,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late String? _region = widget.profile.region.isEmpty ? null : widget.profile.region;
   late final Set<String> _interests = widget.profile.interests.toSet();
   late int? _householdSize = widget.profile.householdSize;
+  late final _profileApiService = widget.profileApiService ?? ProfileApiService();
 
   bool _showErrors = false;
+  bool _isSubmitting = false;
 
   int? get _monthlyIncome => int.tryParse(_monthlyIncomeController.text);
 
@@ -140,9 +144,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _enrollmentStatus != null &&
       _region != null;
 
-  void _submit() {
+  Future<void> _submit() async {
     setState(() => _showErrors = true);
-    if (!_canSubmit) return;
+    if (!_canSubmit || _isSubmitting) return;
 
     final updated = widget.profile.copyWith(
       name: _nameController.text.trim(),
@@ -159,7 +163,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       militaryServiceStatus: _gender == '남성' ? _militaryServiceStatus : null,
     );
 
-    Navigator.of(context).pop(updated);
+    final accessToken = widget.profile.accessToken;
+    if (accessToken == null) {
+      Navigator.of(context).pop(updated);
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      await _profileApiService.saveProfile(accessToken, updated);
+      if (!mounted) return;
+      Navigator.of(context).pop(updated);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
