@@ -313,6 +313,44 @@ void main() {
     expect(find.text('제주특별자치도'), findsOneWidget);
   });
 
+  testWidgets('Main screen caps interested regions at 2',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(MaterialApp(
+      home: MainScreen(
+        profile: UserProfile(
+          name: '홍길동',
+          email: 'test@example.com',
+          birthDate: DateTime(2000, 1, 1),
+          gender: '남성',
+          school: '한국대학교',
+          gpa: 4.0,
+          enrollmentStatus: '재학',
+          region: '서울특별시',
+          interestedRegions: ['부산광역시', '대구광역시'],
+        ),
+      ),
+    ));
+
+    await tester.tap(find.byIcon(Icons.add_location_alt_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text('관심지역 (최대 2개)'), findsOneWidget);
+
+    // 이미 2개가 선택된 상태라 세 번째를 눌러도 잠겨있어 추가되지 않는다.
+    await tester.tap(find.descendant(
+        of: find.byType(TossChipSelector), matching: find.text('제주특별자치도')));
+    await tester.pump();
+    await tester.tap(find.text('완료'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('제주특별자치도'), findsNothing);
+  });
+
   testWidgets(
       'Main screen\'s map placeholder region chips open the policy list (web has no real map)',
       (WidgetTester tester) async {

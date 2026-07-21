@@ -206,7 +206,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   errorText: _schoolError,
                   onChanged: (_) => setState(() {}),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 6),
+                const Text(
+                  '대학에 다니지 않는다면, 아래 재학상태에서 "해당없음"을 선택하면 학교·학점 입력을 건너뛸 수 있어요',
+                  style: TextStyle(fontSize: 12, color: TossColors.textSecondary),
+                ),
+                const SizedBox(height: 14),
                 TossTextField(
                   label: '학점 (4.5 만점)',
                   controller: _gpaController,
@@ -243,16 +248,22 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               ),
               const SizedBox(height: 20),
               TossChipSelector(
-                label: '관심지역 (복수 선택 가능)',
+                label: '관심지역 (최대 2개)',
                 options: kRegions,
                 selected: _region == null ? _interestedRegions : {..._interestedRegions, _region!},
-                disabled: _region == null ? const {} : {_region!},
+                disabled: {
+                  ?_region,
+                  // 너무 많은 관심지역을 고르면 지도/리포트에 정보가 한꺼번에
+                  // 몰려 보여서 2개로 제한한다 — 다 채웠으면 나머지는 잠근다.
+                  if (_interestedRegions.length >= 2)
+                    ...kRegions.where((r) => !_interestedRegions.contains(r)),
+                },
                 multiSelect: true,
                 errorText: _interestedRegionsError,
                 onToggle: (value) => setState(() {
                   if (_interestedRegions.contains(value)) {
                     _interestedRegions.remove(value);
-                  } else {
+                  } else if (_interestedRegions.length < 2) {
                     _interestedRegions.add(value);
                   }
                 }),

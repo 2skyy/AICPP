@@ -162,15 +162,21 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                   const SizedBox(height: 16),
                   TossChipSelector(
-                    label: '관심지역 (복수 선택 가능)',
+                    label: '관심지역 (최대 2개)',
                     options: kRegions,
                     selected: {...updated, profile.region},
-                    disabled: {profile.region},
+                    disabled: {
+                      profile.region,
+                      // 너무 많은 관심지역을 고르면 지도/리포트에 정보가 한꺼번에
+                      // 몰려 보여서 2개로 제한한다 — 다 채웠으면 나머지는 잠근다.
+                      if (updated.length >= 2)
+                        ...kRegions.where((r) => !updated.contains(r)),
+                    },
                     multiSelect: true,
                     onToggle: (region) => setSheetState(() {
                       if (updated.contains(region)) {
                         updated.remove(region);
-                      } else {
+                      } else if (updated.length < 2) {
                         updated.add(region);
                       }
                     }),
@@ -291,7 +297,7 @@ class _MapLegend extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: const [
-        _LegendItem(color: _homeRegionColor, label: '지역'),
+        _LegendItem(color: _homeRegionColor, label: '내 지역'),
         SizedBox(width: 16),
         _LegendItem(color: _interestedRegionColor, label: '관심지역'),
       ],

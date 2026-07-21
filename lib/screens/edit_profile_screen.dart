@@ -227,7 +227,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   errorText: _schoolError,
                   onChanged: (_) => setState(() {}),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 6),
+                const Text(
+                  '대학에 다니지 않는다면, 아래 재학상태에서 "해당없음"을 선택하면 학교·학점 입력을 건너뛸 수 있어요',
+                  style: TextStyle(fontSize: 12, color: TossColors.textSecondary),
+                ),
+                const SizedBox(height: 14),
                 TossTextField(
                   label: '학점 (4.5 만점)',
                   controller: _gpaController,
