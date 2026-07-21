@@ -598,6 +598,54 @@ void main() {
   });
 
   testWidgets(
+      'Chat conversation survives switching to the profile tab and back',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final mockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'answer': '청년월세지원을 신청할 수 있어요.',
+          'policies': [
+            {'name': '청년월세지원'},
+          ],
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      home: HomeShell(
+        profile: sampleProfile(),
+        chatApiService: ChatApiService(client: mockClient),
+      ),
+    ));
+
+    await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('내 지역 청년 주거지원이 궁금해요'));
+    await tester.pumpAndSettle();
+    expect(find.text('내 지역 청년 주거지원이 궁금해요'), findsOneWidget);
+
+    // 프로필 탭으로 갔다가 다시 지도 탭으로 돌아오는 것만으로 ChatPanel의
+    // State(대화 내용)가 날아가면 안 된다 — 예전엔 프로필 탭에서 채팅 버튼/
+    // 패널 자체를 위젯 트리에서 완전히 빼버려서 이 왕복만으로 대화가 초기화됐다.
+    await tester.tap(find.text('프로필'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('지도'));
+    await tester.pumpAndSettle();
+
+    // 채팅 패널을 닫은 적이 없으니 지도 탭으로 돌아오면 그대로 열려 있어야
+    // 하고, 대화 내용도 그대로 남아있어야 한다.
+    expect(find.text('내 지역 청년 주거지원이 궁금해요'), findsOneWidget);
+    expect(find.textContaining('청년월세지원'), findsOneWidget);
+  });
+
+  testWidgets(
       'Scrapping a policy from the report tab shows it under the profile tab',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(400, 1400);

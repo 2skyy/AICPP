@@ -119,39 +119,50 @@ class _HomeShellState extends State<HomeShell> {
             ),
           ),
         ),
-        // 프로필 탭에서는 채팅 버튼/패널을 아예 빼둔다.
-        if (_currentIndex != 2) ...[
-          Positioned(
-            // 좌우를 같은 값으로 고정해서 여백이 대칭이 되게 하고, 위/아래도 둘 다
-            // 고정해서 그 사이 세로 공간을 (버튼 위까지) 꽉 채운다.
-            left: 16,
-            right: 16,
-            top: MediaQuery.of(context).padding.top + 16,
-            bottom: navBarHeight + 16 + 56 + 12,
-            child: Visibility(
-              visible: _chatOpen,
-              maintainState: true,
-              child: ChatPanel(
-                profile: _profile,
-                chatApiService: widget.chatApiService,
-                onClose: () => setState(() => _chatOpen = false),
-              ),
+        // 프로필 탭에서는 채팅 버튼/패널을 안 보이게만 하고, 위젯 트리에서
+        // 완전히 빼지는 않는다 — 예전엔 조건부로 아예 빼버려서 ChatPanel의
+        // State(대화 이력 포함)가 프로필 탭으로 넘어갈 때마다 통째로 사라졌다
+        // (예: 프로필 수정하러 갔다 오면 진행 중이던 대화/이력이 날아감).
+        Positioned.fill(
+          child: Visibility(
+            visible: _currentIndex != 2,
+            maintainState: true,
+            child: Stack(
+              children: [
+                Positioned(
+                  // 좌우를 같은 값으로 고정해서 여백이 대칭이 되게 하고, 위/아래도 둘 다
+                  // 고정해서 그 사이 세로 공간을 (버튼 위까지) 꽉 채운다.
+                  left: 16,
+                  right: 16,
+                  top: MediaQuery.of(context).padding.top + 16,
+                  bottom: navBarHeight + 16 + 56 + 12,
+                  child: Visibility(
+                    visible: _chatOpen,
+                    maintainState: true,
+                    child: ChatPanel(
+                      profile: _profile,
+                      chatApiService: widget.chatApiService,
+                      onClose: () => setState(() => _chatOpen = false),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 16,
+                  bottom: navBarHeight + 16,
+                  child: FloatingActionButton(
+                    heroTag: 'chat_toggle',
+                    backgroundColor: TossColors.primary,
+                    onPressed: _toggleChat,
+                    child: Icon(
+                      _chatOpen ? Icons.close : Icons.chat_bubble_outline,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          Positioned(
-            right: 16,
-            bottom: navBarHeight + 16,
-            child: FloatingActionButton(
-              heroTag: 'chat_toggle',
-              backgroundColor: TossColors.primary,
-              onPressed: _toggleChat,
-              child: Icon(
-                _chatOpen ? Icons.close : Icons.chat_bubble_outline,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
+        ),
       ],
     );
   }
