@@ -16,7 +16,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -57,6 +57,7 @@ class UserProfile(Base):
     marital_status_code: Mapped[str | None] = mapped_column(String(30))
     military_service_status_code: Mapped[str | None] = mapped_column(String(30))
     homeownership_status_code: Mapped[str | None] = mapped_column(String(30))
+    interests: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
     annual_income_amount: Mapped[int | None] = mapped_column(BigInteger)
     median_income_ratio: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
     household_member_count: Mapped[int | None] = mapped_column(SmallInteger)

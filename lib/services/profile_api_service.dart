@@ -104,6 +104,7 @@ class ProfileApiService {
         'household_member_count': profile.householdSize,
         'annual_income_amount':
             profile.monthlyIncome == null ? null : profile.monthlyIncome! * 10000 * 12,
+        'interests': profile.interests,
         'profile_completed': true,
       };
 
@@ -130,6 +131,7 @@ class ProfileApiService {
           ? null
           : ((json['annual_income_amount'] as num).toInt() / 10000 / 12).round(),
       militaryServiceStatus: json['military_service_status_code'] as String?,
+      interests: (json['interests'] as List?)?.cast<String>() ?? const [],
       accessToken: accessToken,
     );
   }

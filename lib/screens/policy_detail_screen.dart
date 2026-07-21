@@ -107,9 +107,9 @@ class _PolicyDetailScreenState extends State<PolicyDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (policy.category != null) ...[
+              if (policy.categoryLabel != null) ...[
                 Chip(
-                  label: Text(policy.category!),
+                  label: Text(policy.categoryLabel!),
                   backgroundColor: TossColors.fieldFill,
                   side: BorderSide.none,
                 ),

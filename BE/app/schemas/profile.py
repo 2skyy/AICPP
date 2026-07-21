@@ -21,6 +21,7 @@ class ProfileFields(BaseModel):
     marital_status_code: str | None = None
     military_service_status_code: str | None = None
     homeownership_status_code: str | None = None
+    interests: list[str] | None = None
     annual_income_amount: int | None = Field(default=None, ge=0)
     median_income_ratio: Decimal | None = Field(default=None, ge=0)
     household_member_count: int | None = Field(default=None, ge=1)
@@ -49,6 +50,7 @@ class ProfileUpdate(BaseModel):
     marital_status_code: str | None = None
     military_service_status_code: str | None = None
     homeownership_status_code: str | None = None
+    interests: list[str] | None = None
     annual_income_amount: int | None = Field(default=None, ge=0)
     median_income_ratio: Decimal | None = Field(default=None, ge=0)
     household_member_count: int | None = Field(default=None, ge=1)

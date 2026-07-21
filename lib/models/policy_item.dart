@@ -1,3 +1,4 @@
+import '../constants/interests.dart';
 import '../models/user_profile.dart';
 
 DateTime _dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
@@ -64,55 +65,63 @@ int? _parseMaxIncomePercent(String? text) {
   return int.tryParse(match.group(1)!);
 }
 
-/// The government API's `lclsfNm` (대분류) uses a few different spellings for
-/// the same 5 categories (e.g. "복지문화" vs "금융･복지･문화", using the
-/// halfwidth katakana middle dot ･ U+FF65, not a regular ·), and sometimes
-/// lists several comma-separated values for one policy (often just the same
-/// category repeated). This maps any raw value down to one clean label.
-const _categorySynonyms = {
-  '일자리': '일자리',
-  '주거': '주거',
-  '교육': '교육',
-  '교육･직업훈련': '교육',
-  '복지문화': '복지문화',
-  '금융･복지･문화': '복지문화',
-  '참여권리': '참여권리',
-  '참여･기반': '참여권리',
-};
-
-/// The government only classifies "복지문화" as one combined 대분류 — there's
-/// no separate raw value for "복지" vs "문화" alone. Its `mclsfNm`(중분류)
-/// almost always disambiguates which one a given policy actually is, though
-/// (verified against live data: of ~640 복지문화 policies, ~83% have an
-/// mclsfNm that maps cleanly here).
-const _welfareCultureBySubCategory = {
-  '취약계층 및 금융지원': '복지',
-  '건강': '복지',
+/// The government API's `mclsfNm`(중분류) mapped directly to one of the
+/// user's selectable interests (`kInterests`, `lib/constants/interests.dart`)
+/// so the map/report category system and the profile's 관심사 system are
+/// exactly the same 9 values — verified against a live pull of all ~2,649
+/// policies. Sub-categories with no real interest counterpart (청년참여/
+/// 정책인프라구축/권익보호 — civic-participation concepts, not a profile
+/// interest) are deliberately left out rather than forced into an unrelated
+/// bucket, so they end up with no category (there is no "참여권리" bucket).
+const _subCategoryToInterest = {
+  '취업': '취업',
+  '재직자': '취업',
+  '창업': '창업',
+  '미래역량강화': '교육',
+  '교육비지원': '교육',
+  '온·오프라인교육': '교육',
+  '온라인교육': '교육',
+  '주택 및 거주지': '주거',
+  '전월세 및 주거급여 지원': '주거',
+  '기숙사': '주거',
+  '건강': '건강',
   '문화활동': '문화',
   '예술인지원': '문화',
+  '청년국제교류': '국제교류',
 };
 
-/// The remaining mclsfNm value ("문화활동 및 생활지원") genuinely names both
-/// concepts, so those policies fall back to a keyword check against their own
-/// name/description — same best-effort spirit as [PolicyItem.matchingInterests].
-String _splitWelfareCulture({required String? subCategory, required String haystack}) {
-  final bySub = _welfareCultureBySubCategory[subCategory?.split(',').first.trim()];
-  if (bySub != null) return bySub;
+/// "취약계층 및 금융지원" names both a target group and a support type at
+/// once, so 금융 vs 복지 can't be read off the label alone — checked against
+/// live data (215 policies): only ~19% mention a financial keyword without
+/// any welfare signal, so that's the only case treated as 금융; everything
+/// else (including the ~43% where neither keyword appears) defaults to 복지,
+/// same fallback spirit as the culture/welfare split below.
+const _financialKeywords = ['대출', '이자', '보증금', '저축', '예금', '적금', '신용', '상환', '금융', '펀드'];
+const _welfareSignalKeywords = ['생활비', '돌봄', '취약계층', '생계', '긴급지원', '한부모', '저소득'];
+
+String _classifyFinancialOrWelfare(String haystack) {
+  final hasFinance = _financialKeywords.any(haystack.contains);
+  final hasWelfareSignal = _welfareSignalKeywords.any(haystack.contains);
+  return (hasFinance && !hasWelfareSignal) ? '금융' : '복지';
+}
+
+/// "문화활동 및 생활지원" also names both concepts at once; disambiguated by
+/// keyword the same way the old 복지문화 대분류 split used to be.
+String _classifyCultureOrWelfare(String haystack) {
   final hasCulture = haystack.contains('문화') || haystack.contains('예술') || haystack.contains('여가');
   final hasWelfare = haystack.contains('복지') || haystack.contains('생활지원') || haystack.contains('생활비');
   if (hasCulture && !hasWelfare) return '문화';
   if (hasWelfare && !hasCulture) return '복지';
-  // 그래도 판단이 안 서면 "생활지원" 쪽 성격이 더 강한 경우가 많아 복지로 둔다.
   return '복지';
 }
 
-String? _normalizeCategory(String? raw, {String? subCategory, String? haystack}) {
-  if (raw == null || raw.trim().isEmpty) return null;
-  final first = raw.split(',').first.trim();
+String? _normalizeCategory(String? subCategory, {String haystack = ''}) {
+  if (subCategory == null || subCategory.trim().isEmpty) return null;
+  final first = subCategory.split(',').first.trim();
   if (first.isEmpty) return null;
-  final normalized = _categorySynonyms[first] ?? first;
-  if (normalized != '복지문화') return normalized;
-  return _splitWelfareCulture(subCategory: subCategory, haystack: haystack ?? '');
+  if (first == '취약계층 및 금융지원') return _classifyFinancialOrWelfare(haystack);
+  if (first == '문화활동 및 생활지원') return _classifyCultureOrWelfare(haystack);
+  return _subCategoryToInterest[first];
 }
 
 /// Some [kInterests] values (`lib/constants/interests.dart`) could be
@@ -164,9 +173,9 @@ class PolicyItem {
   final int? maxAge;
   final String? category;
 
-  /// `mclsfNm` (중분류) — more granular than [category], only used so far to
-  /// disambiguate 복지 vs 문화 within the combined "복지문화" 대분류. See
-  /// [categoryLabel].
+  /// `mclsfNm` (중분류) — this is what [categoryLabel] actually classifies
+  /// off of (see there); [category] (`lclsfNm`, 대분류) is only shown as a
+  /// raw government tag, not used for our own category/interest grouping.
   final String? subCategory;
 
   final DateTime? registeredAt;
@@ -221,14 +230,12 @@ class PolicyItem {
   /// Best-effort "기준중위소득 N% 이하" ceiling parsed from [incomeInfo].
   int? get maxIncomePercent => _parseMaxIncomePercent(incomeInfo);
 
-  /// [category] normalized down to one of 6 categories — the government's 5
-  /// real ones (일자리/주거/교육/복지문화/참여권리), except 복지문화 is split
-  /// further into 복지/문화 (see [_splitWelfareCulture]) — collapsing spelling
-  /// variants and comma-separated duplicates. Null when [category] itself is
-  /// null/empty.
+  /// [subCategory] mapped down to one of [kInterests]'s 9 values (see
+  /// `_subCategoryToInterest`), so this is literally the same taxonomy as the
+  /// profile's 관심사 selection — not a separate government-category system.
+  /// Null when [subCategory] doesn't map to any of them.
   String? get categoryLabel => _normalizeCategory(
-        category,
-        subCategory: subCategory,
+        subCategory,
         haystack: [name, description, supportContent].whereType<String>().join(' '),
       );
 

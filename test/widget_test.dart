@@ -1427,14 +1427,20 @@ void main() {
       );
     });
 
-    test('categoryLabel normalizes spelling variants and comma-separated duplicates', () {
+    test('categoryLabel maps mclsfNm directly onto one of the profile\'s 관심사 values', () {
       expect(
-        PolicyItem.fromJson({'plcyNm': '정책', 'lclsfNm': '교육･직업훈련'}).categoryLabel,
-        '교육',
+        PolicyItem.fromJson({'plcyNm': '정책', 'mclsfNm': '취업'}).categoryLabel,
+        '취업',
       );
       expect(
-        PolicyItem.fromJson({'plcyNm': '정책', 'lclsfNm': '일자리,교육'}).categoryLabel,
-        '일자리',
+        PolicyItem.fromJson({'plcyNm': '정책', 'mclsfNm': '청년국제교류'}).categoryLabel,
+        '국제교류',
+      );
+      // Comma-separated mclsfNm takes the first value, same as the old
+      // lclsfNm handling did.
+      expect(
+        PolicyItem.fromJson({'plcyNm': '정책', 'mclsfNm': '재직자,권익보호'}).categoryLabel,
+        '취업',
       );
       expect(
         PolicyItem.fromJson({'plcyNm': '정책'}).categoryLabel,
@@ -1442,37 +1448,42 @@ void main() {
       );
     });
 
-    test('categoryLabel splits the government\'s combined 복지문화 using mclsfNm', () {
+    test('categoryLabel has no bucket for civic-participation mclsfNm values (no 참여권리)', () {
       expect(
-        PolicyItem.fromJson({
-          'plcyNm': '정책',
-          'lclsfNm': '금융･복지･문화',
-          'mclsfNm': '취약계층 및 금융지원',
-        }).categoryLabel,
-        '복지',
+        PolicyItem.fromJson({'plcyNm': '정책', 'mclsfNm': '청년참여'}).categoryLabel,
+        isNull,
       );
       expect(
-        PolicyItem.fromJson({
-          'plcyNm': '정책',
-          'lclsfNm': '복지문화',
-          'mclsfNm': '문화활동',
-        }).categoryLabel,
-        '문화',
+        PolicyItem.fromJson({'plcyNm': '정책', 'mclsfNm': '정책인프라구축'}).categoryLabel,
+        isNull,
       );
     });
 
-    test('categoryLabel falls back to name/description keywords when mclsfNm is ambiguous', () {
+    test('categoryLabel splits the ambiguous 취약계층 및 금융지원 mclsfNm by keyword, defaulting to 복지', () {
+      expect(
+        PolicyItem.fromJson({
+          'plcyNm': '청년 대출 이자 지원',
+          'mclsfNm': '취약계층 및 금융지원',
+        }).categoryLabel,
+        '금융',
+      );
+      // 힌트가 전혀 없거나 복지 신호가 섞여 있으면 복지 쪽을 기본값으로 둔다.
+      expect(
+        PolicyItem.fromJson({'plcyNm': '정책', 'mclsfNm': '취약계층 및 금융지원'}).categoryLabel,
+        '복지',
+      );
+    });
+
+    test('categoryLabel splits the ambiguous 문화활동 및 생활지원 mclsfNm by keyword, defaulting to 복지', () {
       expect(
         PolicyItem.fromJson({
           'plcyNm': '문화누리카드 지원',
-          'lclsfNm': '금융･복지･문화',
           'mclsfNm': '문화활동 및 생활지원',
         }).categoryLabel,
         '문화',
       );
-      // 힌트가 전혀 없으면 "생활지원" 성격이 더 강한 복지 쪽으로 기본값을 둔다.
       expect(
-        PolicyItem.fromJson({'plcyNm': '정책', 'lclsfNm': '금융･복지･문화'}).categoryLabel,
+        PolicyItem.fromJson({'plcyNm': '정책', 'mclsfNm': '문화활동 및 생활지원'}).categoryLabel,
         '복지',
       );
     });
@@ -1660,8 +1671,8 @@ void main() {
           'result': {
             'pagging': {'totCount': 2},
             'youthPolicyList': [
-              {'plcyNm': '청년월세지원', 'lclsfNm': '주거'},
-              {'plcyNm': '취업역량강화', 'lclsfNm': '교육･직업훈련'},
+              {'plcyNm': '청년월세지원', 'mclsfNm': '주택 및 거주지'},
+              {'plcyNm': '취업역량강화', 'mclsfNm': '미래역량강화'},
             ],
           },
         }),
@@ -1940,7 +1951,7 @@ void main() {
               {
                 'plcyNo': '1',
                 'plcyNm': '청년월세지원',
-                'lclsfNm': '주거',
+                'mclsfNm': '주택 및 거주지',
                 'sprtTrgtMinAge': '19',
                 'sprtTrgtMaxAge': '34',
                 'aplyYmd': '20260101 ~ 20261231',
@@ -1948,7 +1959,7 @@ void main() {
               {
                 'plcyNo': '2',
                 'plcyNm': '고령자 지원금',
-                'lclsfNm': '복지',
+                'mclsfNm': '취약계층 및 금융지원',
                 'sprtTrgtMinAge': '60',
                 'sprtTrgtMaxAge': '80',
               },
