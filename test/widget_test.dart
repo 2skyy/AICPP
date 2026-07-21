@@ -136,7 +136,8 @@ void main() {
     expect(find.text('비밀번호가 일치하지 않아요'), findsOneWidget);
   });
 
-  testWidgets('Completing signup and profile setup reaches the main screen',
+  testWidgets(
+      'Completing signup and profile setup returns to login, then logging in reaches the main screen',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(400, 1400);
     tester.view.devicePixelRatio = 1.0;
@@ -150,9 +151,17 @@ void main() {
         headers: {'content-type': 'application/json'},
       );
     });
+    // 실제 백엔드처럼 관심지역 PATCH 결과를 기억해뒀다가 이후 GET에서 그대로
+    // 돌려준다 — 재로그인 후에도 방금 저장한 관심지역이 유지되는지 확인하려면
+    // mock이 상태 없이 항상 빈 목록만 주면 안 된다.
+    var savedRegionCodes = <String>[];
     final profileMockClient = MockClient((request) async {
       if (request.url.path.endsWith('/interest-regions')) {
-        return http.Response('{"region_codes": []}', 200,
+        if (request.method == 'PATCH') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          savedRegionCodes = (body['region_codes'] as List).cast<String>();
+        }
+        return http.Response(jsonEncode({'region_codes': savedRegionCodes}), 200,
             headers: {'content-type': 'application/json'});
       }
       return http.Response(
@@ -213,6 +222,19 @@ void main() {
     await tester.ensureVisible(find.text('완료'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('완료'));
+    await tester.pumpAndSettle();
+
+    // 프로필 저장 후 바로 메인으로 가지 않고 로그인 화면으로 돌아와서 다시
+    // 로그인해야 메인으로 넘어간다.
+    expect(find.text('비밀번호'), findsOneWidget);
+    expect(find.textContaining('환영해요'), findsNothing);
+
+    final loginFields = find.byType(TextField);
+    await tester.enterText(loginFields.at(0), 'test@example.com');
+    await tester.enterText(loginFields.at(1), 'password123');
+    await tester.pump();
+    await tester.ensureVisible(find.text('로그인'));
+    await tester.tap(find.text('로그인'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('환영해요'), findsOneWidget);

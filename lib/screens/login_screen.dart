@@ -64,6 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
               name: session.email.split('@').first,
               email: session.email,
               accessToken: session.accessToken,
+              authApiService: widget.authApiService,
               profileApiService: widget.profileApiService,
             ),
           ),

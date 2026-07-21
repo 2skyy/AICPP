@@ -4,6 +4,7 @@ import '../constants/median_income.dart';
 import '../constants/regions.dart';
 import '../constants/universities.dart';
 import '../models/user_profile.dart';
+import '../services/auth_api_service.dart';
 import '../services/profile_api_service.dart';
 import '../theme/toss_colors.dart';
 import '../utils/age.dart';
@@ -14,7 +15,7 @@ import '../widgets/toss_autocomplete_field.dart';
 import '../widgets/toss_button.dart';
 import '../widgets/toss_chip_selector.dart';
 import '../widgets/toss_text_field.dart';
-import 'home_shell.dart';
+import 'login_screen.dart';
 
 const _genderOptions = ['남성', '여성'];
 const _enrollmentOptions = ['재학', '휴학', '졸업', '졸업유예', '해당없음'];
@@ -26,12 +27,14 @@ class ProfileSetupScreen extends StatefulWidget {
     required this.name,
     required this.email,
     required this.accessToken,
+    this.authApiService,
     this.profileApiService,
   });
 
   final String name;
   final String email;
   final String accessToken;
+  final AuthApiService? authApiService;
   final ProfileApiService? profileApiService;
 
   @override
@@ -160,9 +163,14 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       await _profileApiService.saveProfile(widget.accessToken, profile);
       await _profileApiService.saveInterestedRegions(widget.accessToken, profile.interestedRegions);
       if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('프로필 저장 완료! 다시 로그인해주세요')));
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => HomeShell(profile: profile, profileApiService: widget.profileApiService),
+          builder: (_) => LoginScreen(
+            authApiService: widget.authApiService,
+            profileApiService: widget.profileApiService,
+          ),
         ),
       );
     } catch (e) {

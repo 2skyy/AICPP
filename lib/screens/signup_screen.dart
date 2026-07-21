@@ -86,6 +86,7 @@ class _SignupScreenState extends State<SignupScreen> {
             name: _nameController.text.trim(),
             email: session.email,
             accessToken: session.accessToken,
+            authApiService: widget.authApiService,
             profileApiService: widget.profileApiService,
           ),
         ),
