@@ -12,6 +12,8 @@ router = APIRouter(prefix="/api/v1/auth", tags=["v1-auth"])
 
 
 def get_auth_service(settings: Settings = Depends(get_settings)) -> AuthService:
+    if not settings.supabase_url or not settings.supabase_anon_key:
+        raise HTTPException(status_code=503, detail="Supabase Auth is not configured")
     return AuthService(SupabaseAuthClient(settings))
 
 
@@ -31,6 +33,8 @@ def signup(body: AuthCredentials, service: AuthService = Depends(get_auth_servic
         session = service.sign_up(body.email, body.password)
     except SupabaseAuthError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail="Supabase Auth is unavailable") from exc
     return _to_response(session)
 
 
@@ -40,6 +44,8 @@ def login(body: AuthCredentials, service: AuthService = Depends(get_auth_service
         session = service.sign_in(body.email, body.password)
     except SupabaseAuthError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail="Supabase Auth is unavailable") from exc
     return _to_response(session)
 
 
