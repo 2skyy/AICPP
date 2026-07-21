@@ -74,7 +74,7 @@
 ### 폴리 — 플로팅 채팅 어시스턴트 (`lib/widgets/chat_panel.dart`)
 - 탭이 아니라 `HomeShell` 우측 하단에 떠 있는 버튼입니다(지도·리포트 탭에서만, 프로필 탭엔 없음). 탭하면 화면 위쪽 여백만 남기고 아래로 화면 높이의 2/3만큼, 좌우로는 대칭 여백을 두고 채팅 패널이 오버레이로 뜹니다. 닫기는 같은 버튼(열려있을 땐 X 아이콘으로 바뀜)으로만 하고, 패널 헤더에는 닫기 버튼이 따로 없습니다.
 - 이걸 가능하게 하려고 `HomeShell`이 자체 중첩 `Navigator`를 가지고 있습니다 — 탭 안에서 일어나는 화면 전환(정책 상세, 관심지역 관리, 프로필 수정 등)은 전부 이 중첩 Navigator 안에서만 일어나서, 바깥의 폴리 버튼/패널을 덮지 않습니다. 로그아웃만 예외로 `Navigator.of(context, rootNavigator: true)`를 써서 앱 전체(HomeShell 포함)를 로그인 화면으로 교체합니다.
-- 대화 이력 저장/복원 가능 (헤더의 펜/사각형 아이콘으로 현재 대화를 이력에 보관하고 새 대화 시작, 시계 아이콘으로 이전 대화 다시 열기). 패널을 닫아도 대화 내용은 유지되고, 로그아웃하면 초기화됩니다.
+- 대화 이력 저장/복원 가능 (헤더의 펜/사각형 아이콘으로 현재 대화를 이력에 보관하고 새 대화 시작, 시계 아이콘으로 이전 대화 다시 열기). 패널을 닫아도, **프로필 탭에 갔다 와도** 대화 내용은 유지되고, 로그아웃하면 초기화됩니다 — 예전엔 프로필 탭에서 채팅 버튼/패널을 위젯 트리에서 통째로 빼버려서 그 탭에 다녀오기만 해도 대화가 날아갔는데, `Positioned.fill` + `Visibility(maintainState: true)`로 안 보이게만 하고 상태는 유지하도록 고쳤습니다 (`home_shell.dart`).
 - **실제 Claude API로 자연어 응답을 생성합니다** (아래 "백엔드" 참고) — 규칙 기반 키워드 추출은 백엔드가 관련 정책을 찾아오는 1차 검색에만 쓰이고, 최종 답변은 Claude가 그 정책 데이터만 근거로 생성합니다.
 - Claude에게 넘기는 사용자 정보는 지역·관심지역·재학상태·나이·성별·학교·학점·소득분위·스크랩한 정책까지 포함합니다 — "내가 스크랩한 정책 신청기간이 언제까지야?" 같은 질문에도 실제 근거를 갖고 답할 수 있습니다.
 - 답변에 마크다운 문법(#, **, ` 등)이 섞여 나오지 않도록 시스템 프롬프트 지시 + 코드 단의 정규식 스트리핑(`BE/app/services/markdown_utils.py`)을 이중으로 적용합니다.
@@ -196,7 +196,7 @@ flutter run -d "iPhone 17" --dart-define-from-file=config/naver_map.local.json
 ## 테스트
 
 ```bash
-# Flutter (89개)
+# Flutter (91개)
 flutter analyze
 flutter test
 
@@ -221,7 +221,7 @@ cd BE && source venv/bin/activate && python3 -m unittest discover -s tests -v
 - 네이버 지도 Client ID는 발급받아 로컬(`config/naver_map.local.json`, 커밋 안 됨)에 등록되어 있고, iOS 시뮬레이터에서 실제 지도·핀·줌 컨트롤까지 동작 확인을 완료했습니다.
 - **웹은 실제로 배포되어 있습니다** (https://aicpp-mu.vercel.app , 백엔드 https://aicpp.onrender.com) — 지도만 `flutter_map`/OpenStreetMap 기반으로 대체되고 나머지 기능은 네이티브와 동일하게 동작합니다. 둘 다 무료 플랜이라 트래픽이 몰리면(대략 동시 30명 이상) 정부 API·NewsAPI 호출 제한이나 Render 무료 인스턴스의 단일 프로세스 한계로 느려질 수 있습니다.
 - 정책 카테고리(`categoryLabel`)는 이제 프로필 관심사(`kInterests`, 9개)와 완전히 같은 taxonomy입니다 — 지도 카테고리 칩/리포트 카테고리 도넛/회원가입·프로필의 관심사 선택이 전부 같은 9개를 씁니다. "참여권리"는 더 이상 존재하지 않습니다 (위 "지도" 섹션 참고).
-- `flutter analyze`, `flutter test`(89개), 백엔드 `unittest`(46개) 모두 통과하는 상태입니다.
+- `flutter analyze`, `flutter test`(91개), 백엔드 `unittest`(46개) 모두 통과하는 상태입니다.
 
 ### 다음에 이어서 할 만한 것
 - 스크랩(저장한 정책), 채팅 이력을 새 `/api/v1` 백엔드에 실제로 저장 — DB 스키마(`user_saved_policies`, `chat_conversations` 등)는 이미 있지만 그 위 API 엔드포인트가 아직 없음
