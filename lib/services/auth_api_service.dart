@@ -42,7 +42,9 @@ class AuthApiService {
             headers: {'content-type': 'application/json'},
             body: jsonEncode({'email': email, 'password': password}),
           )
-          .timeout(const Duration(seconds: 15));
+          // Render 무료 플랜은 오래 안 쓰면 슬립 상태가 되고, 깨어나는 데 최대
+          // 50초 정도 걸릴 수 있어서(README 참고) 그보다 넉넉하게 잡는다.
+          .timeout(const Duration(seconds: 60));
     } catch (_) {
       throw AuthApiException('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
     }

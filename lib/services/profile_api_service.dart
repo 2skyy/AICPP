@@ -28,7 +28,8 @@ class ProfileApiService {
     try {
       response = await _client
           .get(Uri.parse('$policyApiBaseUrl/api/v1/profile'), headers: _headers(accessToken))
-          .timeout(const Duration(seconds: 15));
+          // Render 무료 플랜 콜드스타트(최대 50초)를 감안한 여유 있는 타임아웃.
+          .timeout(const Duration(seconds: 60));
     } catch (_) {
       throw ProfileApiException('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
     }
@@ -59,7 +60,8 @@ class ProfileApiService {
             headers: _headers(accessToken),
             body: body,
           )
-          .timeout(const Duration(seconds: 15));
+          // Render 무료 플랜 콜드스타트(최대 50초)를 감안한 여유 있는 타임아웃.
+          .timeout(const Duration(seconds: 60));
       if (response.statusCode == 404) {
         response = await _client
             .post(
@@ -67,7 +69,8 @@ class ProfileApiService {
               headers: _headers(accessToken),
               body: body,
             )
-            .timeout(const Duration(seconds: 15));
+            // Render 무료 플랜 콜드스타트(최대 50초)를 감안한 여유 있는 타임아웃.
+          .timeout(const Duration(seconds: 60));
       }
     } catch (_) {
       throw ProfileApiException('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
@@ -141,7 +144,8 @@ class ProfileApiService {
             Uri.parse('$policyApiBaseUrl/api/v1/profile/interest-regions'),
             headers: _headers(accessToken),
           )
-          .timeout(const Duration(seconds: 15));
+          // Render 무료 플랜 콜드스타트(최대 50초)를 감안한 여유 있는 타임아웃.
+          .timeout(const Duration(seconds: 60));
     } catch (_) {
       return const [];
     }
@@ -163,7 +167,8 @@ class ProfileApiService {
             headers: _headers(accessToken),
             body: jsonEncode({'region_codes': codes}),
           )
-          .timeout(const Duration(seconds: 15));
+          // Render 무료 플랜 콜드스타트(최대 50초)를 감안한 여유 있는 타임아웃.
+          .timeout(const Duration(seconds: 60));
     } catch (_) {
       throw ProfileApiException('서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.');
     }
