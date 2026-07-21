@@ -24,6 +24,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.endpoints.chat_endpoint import router as chat_router
 from app.api.endpoints.news_endpoint import router as news_router
 from app.api.endpoints.ontong_policy_endpoint import router as ontong_policy_router
+from app.api.endpoints.auth_v1_endpoint import router as auth_v1_router
+from app.api.endpoints.chat_v1_endpoint import router as chat_v1_router
+from app.api.endpoints.policy_endpoint import router as policy_v1_router
+from app.api.endpoints.profile_endpoint import router as profile_v1_router
+from app.api.endpoints.region_endpoint import router as region_v1_router
+from app.api.endpoints.report_endpoint import router as report_v1_router
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
@@ -52,3 +58,9 @@ def health_check():
 app.include_router(ontong_policy_router)
 app.include_router(chat_router)
 app.include_router(news_router)
+app.include_router(auth_v1_router)
+app.include_router(profile_v1_router)
+app.include_router(region_v1_router)
+app.include_router(policy_v1_router)
+app.include_router(report_v1_router)
+app.include_router(chat_v1_router)

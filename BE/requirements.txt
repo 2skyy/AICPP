@@ -6,18 +6,18 @@ uvicorn[standard]
 # 2. 데이터베이스 및 ORM2
 sqlalchemy
 psycopg[binary]
-# pgvector
-# alembic
-# pydantic-settings
+pgvector
+alembic
+pydantic-settings
 python-dotenv
 
 # 3. 데이터 검증
-# pydantic[email]
+pydantic[email]
 
 # 4. 보안 및 인증
-# passlib[bcrypt]
-# python-jose[cryptography]
-# python-multipart
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
 
 # 5. 기타
 requests

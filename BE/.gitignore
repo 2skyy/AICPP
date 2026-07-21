@@ -3,6 +3,8 @@
 venv/
 .venv/
 env/
+.python/
+.uv-cache/
 
 # 파이썬 캐시
 __pycache__/
