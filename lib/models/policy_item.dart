@@ -80,20 +80,47 @@ const _categorySynonyms = {
   '참여･기반': '참여권리',
 };
 
-String? _normalizeCategory(String? raw) {
+/// The government only classifies "복지문화" as one combined 대분류 — there's
+/// no separate raw value for "복지" vs "문화" alone. Its `mclsfNm`(중분류)
+/// almost always disambiguates which one a given policy actually is, though
+/// (verified against live data: of ~640 복지문화 policies, ~83% have an
+/// mclsfNm that maps cleanly here).
+const _welfareCultureBySubCategory = {
+  '취약계층 및 금융지원': '복지',
+  '건강': '복지',
+  '문화활동': '문화',
+  '예술인지원': '문화',
+};
+
+/// The remaining mclsfNm value ("문화활동 및 생활지원") genuinely names both
+/// concepts, so those policies fall back to a keyword check against their own
+/// name/description — same best-effort spirit as [PolicyItem.matchingInterests].
+String _splitWelfareCulture({required String? subCategory, required String haystack}) {
+  final bySub = _welfareCultureBySubCategory[subCategory?.split(',').first.trim()];
+  if (bySub != null) return bySub;
+  final hasCulture = haystack.contains('문화') || haystack.contains('예술') || haystack.contains('여가');
+  final hasWelfare = haystack.contains('복지') || haystack.contains('생활지원') || haystack.contains('생활비');
+  if (hasCulture && !hasWelfare) return '문화';
+  if (hasWelfare && !hasCulture) return '복지';
+  // 그래도 판단이 안 서면 "생활지원" 쪽 성격이 더 강한 경우가 많아 복지로 둔다.
+  return '복지';
+}
+
+String? _normalizeCategory(String? raw, {String? subCategory, String? haystack}) {
   if (raw == null || raw.trim().isEmpty) return null;
   final first = raw.split(',').first.trim();
   if (first.isEmpty) return null;
-  return _categorySynonyms[first] ?? first;
+  final normalized = _categorySynonyms[first] ?? first;
+  if (normalized != '복지문화') return normalized;
+  return _splitWelfareCulture(subCategory: subCategory, haystack: haystack ?? '');
 }
 
-/// A handful of [kInterests] values (`lib/constants/interests.dart`) are
-/// compound words that won't literally appear in policy text as one token
-/// (e.g. a policy mentions "문화" or "복지" separately, never "복지문화") —
+/// Some [kInterests] values (`lib/constants/interests.dart`) could be
+/// compound words that won't literally appear in policy text as one token —
 /// this expands those down to the words actually worth searching for.
-const _interestKeywordGroups = {
-  '복지문화': ['복지', '문화'],
-};
+/// Currently empty since every interest is a single plain word, but kept so
+/// a future compound interest doesn't need this matching logic rebuilt.
+const _interestKeywordGroups = <String, List<String>>{};
 
 List<String> _keywordsForInterest(String interest) =>
     _interestKeywordGroups[interest] ?? [interest];
@@ -117,6 +144,7 @@ class PolicyItem {
     this.minAge,
     this.maxAge,
     this.category,
+    this.subCategory,
     this.registeredAt,
     this.applyStart,
     this.deadline,
@@ -135,6 +163,12 @@ class PolicyItem {
   final int? minAge;
   final int? maxAge;
   final String? category;
+
+  /// `mclsfNm` (중분류) — more granular than [category], only used so far to
+  /// disambiguate 복지 vs 문화 within the combined "복지문화" 대분류. See
+  /// [categoryLabel].
+  final String? subCategory;
+
   final DateTime? registeredAt;
   final DateTime? applyStart;
   final DateTime? deadline;
@@ -187,11 +221,16 @@ class PolicyItem {
   /// Best-effort "기준중위소득 N% 이하" ceiling parsed from [incomeInfo].
   int? get maxIncomePercent => _parseMaxIncomePercent(incomeInfo);
 
-  /// [category] normalized down to one of the government API's 5 real
-  /// categories (일자리/주거/교육/복지문화/참여권리), collapsing spelling
+  /// [category] normalized down to one of 6 categories — the government's 5
+  /// real ones (일자리/주거/교육/복지문화/참여권리), except 복지문화 is split
+  /// further into 복지/문화 (see [_splitWelfareCulture]) — collapsing spelling
   /// variants and comma-separated duplicates. Null when [category] itself is
   /// null/empty.
-  String? get categoryLabel => _normalizeCategory(category);
+  String? get categoryLabel => _normalizeCategory(
+        category,
+        subCategory: subCategory,
+        haystack: [name, description, supportContent].whereType<String>().join(' '),
+      );
 
   /// Which of [UserProfile.interests] this policy's name/description/support
   /// content actually mentions. Unlike [ageMatches]/[incomeMatches] (hard
@@ -338,6 +377,7 @@ class PolicyItem {
       minAge: parseAge(json['sprtTrgtMinAge']),
       maxAge: parseAge(json['sprtTrgtMaxAge']),
       category: findFirst(['lclsfNm']),
+      subCategory: findFirst(['mclsfNm']),
       registeredAt: parseTimestamp(findFirst(['frstRegDt'])),
       applyStart: parseYmd(applyStartRaw),
       deadline: parseYmd(deadlineRaw),

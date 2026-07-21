@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import '../config/naver_map_config.dart';
@@ -10,6 +11,7 @@ import '../theme/toss_colors.dart';
 import '../widgets/policy_list_sheet.dart';
 import '../widgets/toss_button.dart';
 import '../widgets/toss_chip_selector.dart';
+import '../widgets/web_region_map.dart';
 
 const _homeRegionColor = TossColors.primary;
 const _interestedRegionColor = Color(0xFFFF8B3D);
@@ -43,6 +45,15 @@ class _MainScreenState extends State<MainScreen> {
 
   Set<String> get _allRegions => {profile.region, ..._interestedRegions};
 
+  @override
+  void initState() {
+    super.initState();
+    // 네이티브는 NaverMap의 onMapReady(_onMapReady)에서 로딩을 시작하지만,
+    // WebRegionMap엔 그런 "지도 준비 완료" 콜백이 없어서 여기서 직접 불러야
+    // 웹에서도 지역 라벨에 건수가 뜬다.
+    if (kIsWeb) unawaited(_loadPolicyCounts());
+  }
+
   Future<void> _loadPolicyCounts() async {
     final regions = _allRegions;
     final entries = await Future.wait(regions.map((region) async {
@@ -69,6 +80,16 @@ class _MainScreenState extends State<MainScreen> {
     if (count < 0) return '$region (조회 실패)';
     return '$region · $count건';
   }
+
+  /// Only used by [WebRegionMap] (web has no Naver SDK) — mirrors the same
+  /// 지역/관심지역 color split the native markers use below.
+  Map<String, Color> get _webRegionColors => {
+        for (final region in _allRegions)
+          region: region == profile.region ? _homeRegionColor : _interestedRegionColor,
+      };
+
+  Map<String, String> get _webRegionLabels =>
+      {for (final region in _allRegions) region: _captionFor(region)};
 
   Set<NMarker> _buildMarkers() {
     return {
@@ -208,43 +229,52 @@ class _MainScreenState extends State<MainScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              if (naverMapClientId.isNotEmpty && isNaverMapSupportedPlatform)
+              if (kIsWeb || (naverMapClientId.isNotEmpty && isNaverMapSupportedPlatform))
                 const _MapLegend(),
-              if (naverMapClientId.isNotEmpty && isNaverMapSupportedPlatform)
+              if (kIsWeb || (naverMapClientId.isNotEmpty && isNaverMapSupportedPlatform))
                 const SizedBox(height: 12),
               Expanded(
-                child: naverMapClientId.isEmpty || !isNaverMapSupportedPlatform
-                    ? _NaverMapPlaceholder(
-                        homeRegion: profile.region,
-                        interestedRegions: _interestedRegions.toList(),
-                        unsupportedPlatform: !isNaverMapSupportedPlatform,
+                // 네이버 지도 SDK는 웹을 지원하지 않아서, 웹에서만 실제 인터랙티브
+                // 지도(OpenStreetMap 기반 WebRegionMap)로 대체한다. 네이티브
+                // (iOS/Android)는 아래 분기 그대로 실제 네이버 지도를 쓴다.
+                child: kIsWeb
+                    ? WebRegionMap(
+                        regionColors: _webRegionColors,
+                        regionLabels: _webRegionLabels,
                         onRegionTap: _openPolicyListSheet,
                       )
-                    : ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Stack(
-                          children: [
-                            NaverMap(
-                              options: const NaverMapViewOptions(
-                                initialCameraPosition: NCameraPosition(
-                                  target: NLatLng(36.5, 127.8),
-                                  zoom: 6.5,
+                    : (naverMapClientId.isEmpty || !isNaverMapSupportedPlatform
+                        ? _NaverMapPlaceholder(
+                            homeRegion: profile.region,
+                            interestedRegions: _interestedRegions.toList(),
+                            unsupportedPlatform: !isNaverMapSupportedPlatform,
+                            onRegionTap: _openPolicyListSheet,
+                          )
+                        : ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Stack(
+                              children: [
+                                NaverMap(
+                                  options: const NaverMapViewOptions(
+                                    initialCameraPosition: NCameraPosition(
+                                      target: NLatLng(36.5, 127.8),
+                                      zoom: 6.5,
+                                    ),
+                                    activeLayerGroups: [],
+                                    lightness: 0.7,
+                                  ),
+                                  onMapReady: _onMapReady,
                                 ),
-                                activeLayerGroups: [],
-                                lightness: 0.7,
-                              ),
-                              onMapReady: _onMapReady,
+                                Positioned(
+                                  right: 12,
+                                  top: 12,
+                                  child: NaverMapZoomControlWidget(
+                                    mapController: _mapController,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Positioned(
-                              right: 12,
-                              top: 12,
-                              child: NaverMapZoomControlWidget(
-                                mapController: _mapController,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                          )),
               ),
             ],
           ),

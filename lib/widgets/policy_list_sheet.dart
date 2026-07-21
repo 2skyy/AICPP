@@ -7,10 +7,11 @@ import '../theme/toss_colors.dart';
 
 enum _SortMode { deadline, latest, amount }
 
-/// Fixed display order for the government API's 5 real categories (see
-/// [PolicyItem.categoryLabel]), so the filter chips don't jump around as
-/// different regions surface different subsets.
-const _categoryOrder = ['일자리', '주거', '교육', '복지문화', '참여권리'];
+/// Fixed display order for [PolicyItem.categoryLabel]'s 6 categories (the
+/// government's 5 real ones, with 복지문화 split into 복지/문화), so the
+/// filter chips don't jump around as different regions surface different
+/// subsets.
+const _categoryOrder = ['일자리', '주거', '교육', '복지', '문화', '참여권리'];
 
 class PolicyListSheet extends StatefulWidget {
   const PolicyListSheet({

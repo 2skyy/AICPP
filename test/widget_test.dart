@@ -1305,19 +1305,15 @@ void main() {
       expect(item.matchesInterests(sampleProfile()), isFalse);
     });
 
-    test('matchingInterests expands "복지문화" into its component keywords', () {
+    test('matchingInterests matches 복지 and 문화 as separate interests', () {
       final item = PolicyItem.fromJson({'plcyNm': '정책', 'plcyExplnCn': '지역 문화 행사 지원'});
       expect(
-        item.matchingInterests(sampleProfile(interests: const ['복지문화'])),
-        ['복지문화'],
+        item.matchingInterests(sampleProfile(interests: const ['복지', '문화'])),
+        ['문화'],
       );
     });
 
     test('categoryLabel normalizes spelling variants and comma-separated duplicates', () {
-      expect(
-        PolicyItem.fromJson({'plcyNm': '정책', 'lclsfNm': '금융･복지･문화'}).categoryLabel,
-        '복지문화',
-      );
       expect(
         PolicyItem.fromJson({'plcyNm': '정책', 'lclsfNm': '교육･직업훈련'}).categoryLabel,
         '교육',
@@ -1329,6 +1325,41 @@ void main() {
       expect(
         PolicyItem.fromJson({'plcyNm': '정책'}).categoryLabel,
         isNull,
+      );
+    });
+
+    test('categoryLabel splits the government\'s combined 복지문화 using mclsfNm', () {
+      expect(
+        PolicyItem.fromJson({
+          'plcyNm': '정책',
+          'lclsfNm': '금융･복지･문화',
+          'mclsfNm': '취약계층 및 금융지원',
+        }).categoryLabel,
+        '복지',
+      );
+      expect(
+        PolicyItem.fromJson({
+          'plcyNm': '정책',
+          'lclsfNm': '복지문화',
+          'mclsfNm': '문화활동',
+        }).categoryLabel,
+        '문화',
+      );
+    });
+
+    test('categoryLabel falls back to name/description keywords when mclsfNm is ambiguous', () {
+      expect(
+        PolicyItem.fromJson({
+          'plcyNm': '문화누리카드 지원',
+          'lclsfNm': '금융･복지･문화',
+          'mclsfNm': '문화활동 및 생활지원',
+        }).categoryLabel,
+        '문화',
+      );
+      // 힌트가 전혀 없으면 "생활지원" 성격이 더 강한 복지 쪽으로 기본값을 둔다.
+      expect(
+        PolicyItem.fromJson({'plcyNm': '정책', 'lclsfNm': '금융･복지･문화'}).categoryLabel,
+        '복지',
       );
     });
   });
