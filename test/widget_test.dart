@@ -519,7 +519,7 @@ void main() {
     // The floating chat button lives inside HomeShell's nested Navigator
     // scope — logging out must fully replace HomeShell, not just push the
     // login screen underneath it.
-    expect(find.byIcon(Icons.chat_bubble_outline), findsNothing);
+    expect(find.byType(FloatingActionButton), findsNothing);
   });
 
   testWidgets(
@@ -535,13 +535,13 @@ void main() {
     // Chat is not a bottom-nav tab anymore; the map tab stays visible.
     expect(find.text('채팅'), findsNothing);
     expect(find.textContaining('환영해요'), findsOneWidget);
-    expect(find.text('정책 어시스턴트'), findsNothing);
+    expect(find.text('모아폴리 정책 어시스턴트'), findsNothing);
 
-    await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+    await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
 
     // The panel is open, but the map screen behind it is still there.
-    expect(find.text('정책 어시스턴트'), findsOneWidget);
+    expect(find.text('모아폴리 정책 어시스턴트'), findsOneWidget);
     expect(find.textContaining('환영해요'), findsOneWidget);
 
     // Closed via the same floating button (now showing an X), not a header
@@ -549,7 +549,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.close));
     await tester.pumpAndSettle();
 
-    expect(find.text('정책 어시스턴트'), findsNothing);
+    expect(find.text('모아폴리 정책 어시스턴트'), findsNothing);
   });
 
   testWidgets(
@@ -601,7 +601,7 @@ void main() {
 
     await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
-    expect(find.text('정책 어시스턴트'), findsOneWidget);
+    expect(find.text('모아폴리 정책 어시스턴트'), findsOneWidget);
   });
 
   testWidgets(
@@ -632,7 +632,7 @@ void main() {
       ),
     ));
 
-    await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+    await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
     await tester.tap(find.text('내 지역 청년 주거지원이 궁금해요'));
     await tester.pumpAndSettle();

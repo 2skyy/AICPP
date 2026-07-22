@@ -151,12 +151,18 @@ class _HomeShellState extends State<HomeShell> {
                   bottom: navBarHeight + 16,
                   child: FloatingActionButton(
                     heroTag: 'chat_toggle',
-                    backgroundColor: TossColors.primary,
+                    backgroundColor: TossColors.assistantPrimary,
                     onPressed: _toggleChat,
-                    child: Icon(
-                      _chatOpen ? Icons.close : Icons.chat_bubble_outline,
-                      color: Colors.white,
-                    ),
+                    child: _chatOpen
+                        ? const Icon(Icons.close, color: Colors.white)
+                        : ClipOval(
+                            child: Image.asset(
+                              'assets/icon/assistant_icon.png',
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
                   ),
                 ),
               ],

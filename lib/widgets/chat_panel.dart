@@ -188,7 +188,7 @@ class _PanelHeader extends StatelessWidget {
         children: [
           const Expanded(
             child: Text(
-              '정책 어시스턴트',
+              '모아폴리 정책 어시스턴트',
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -283,7 +283,7 @@ class _ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final alignment = message.isUser ? Alignment.centerRight : Alignment.centerLeft;
-    final bubbleColor = message.isUser ? TossColors.primary : TossColors.fieldFill;
+    final bubbleColor = message.isUser ? TossColors.assistantPrimary : TossColors.fieldFill;
     final textColor = message.isUser ? Colors.white : TossColors.textPrimary;
 
     return Align(
@@ -361,7 +361,7 @@ class _ChatInputBar extends StatelessWidget {
             padding: const EdgeInsets.all(8),
             constraints: const BoxConstraints(),
             style: IconButton.styleFrom(
-              backgroundColor: TossColors.primary,
+              backgroundColor: TossColors.assistantPrimary,
               shape: const CircleBorder(),
             ),
           ),
