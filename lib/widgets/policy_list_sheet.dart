@@ -178,6 +178,7 @@ class _PolicyListSheetState extends State<PolicyListSheet> {
                         _CategoryChip(
                           label: '전체',
                           selected: _selectedCategory == null,
+                          enabled: !_interestOnly,
                           onTap: () => setState(() => _selectedCategory = null),
                         ),
                         if (widget.profile.interests.isNotEmpty) ...[
@@ -185,7 +186,14 @@ class _PolicyListSheetState extends State<PolicyListSheet> {
                           _CategoryChip(
                             label: '내 관심사만',
                             selected: _interestOnly,
-                            onTap: () => setState(() => _interestOnly = !_interestOnly),
+                            // "내 관심사만"과 개별 카테고리 선택은 같은 목적(카테고리로
+                            // 좁히기)이 겹쳐서 동시에 켜두면 결과가 헷갈린다 — 관심사
+                            // 필터를 켤 땐 카테고리 선택을 초기화하고, 꺼질 때까지
+                            // 다른 카테고리 칩은 못 누르게 막는다.
+                            onTap: () => setState(() {
+                              _interestOnly = !_interestOnly;
+                              if (_interestOnly) _selectedCategory = null;
+                            }),
                           ),
                         ],
                         for (final category in _availableCategories) ...[
@@ -193,6 +201,7 @@ class _PolicyListSheetState extends State<PolicyListSheet> {
                           _CategoryChip(
                             label: category,
                             selected: _selectedCategory == category,
+                            enabled: !_interestOnly,
                             onTap: () => setState(() => _selectedCategory = category),
                           ),
                         ],
@@ -281,31 +290,40 @@ class _SortChip extends StatelessWidget {
 }
 
 class _CategoryChip extends StatelessWidget {
-  const _CategoryChip({required this.label, required this.selected, required this.onTap});
+  const _CategoryChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.enabled = true,
+  });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? TossColors.primary.withValues(alpha: 0.12) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected ? TossColors.primary : TossColors.textSecondary.withValues(alpha: 0.3),
+    return Opacity(
+      opacity: enabled ? 1 : 0.4,
+      child: GestureDetector(
+        onTap: enabled ? onTap : null,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? TossColors.primary.withValues(alpha: 0.12) : Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? TossColors.primary : TossColors.textSecondary.withValues(alpha: 0.3),
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: selected ? TossColors.primary : TossColors.textSecondary,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: selected ? TossColors.primary : TossColors.textSecondary,
+            ),
           ),
         ),
       ),

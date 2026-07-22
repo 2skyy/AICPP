@@ -1959,6 +1959,21 @@ void main() {
     expect(find.text('청년월세지원'), findsOneWidget);
     expect(find.text('취업역량강화'), findsNothing);
     expect(find.text('관심사: 주거'), findsOneWidget);
+
+    // While "내 관심사만" is on, the other category chips (전체 등) are
+    // disabled — tapping them shouldn't change the filtered results.
+    await tester.tap(find.text('전체'));
+    await tester.pumpAndSettle();
+    expect(find.text('청년월세지원'), findsOneWidget);
+    expect(find.text('취업역량강화'), findsNothing);
+
+    // Turning "내 관심사만" back off restores the other chips.
+    await tester.tap(find.text('내 관심사만'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('전체'));
+    await tester.pumpAndSettle();
+    expect(find.text('청년월세지원'), findsOneWidget);
+    expect(find.text('취업역량강화'), findsOneWidget);
   });
 
   testWidgets('Policy list sheet shows the connection error message on failure',
