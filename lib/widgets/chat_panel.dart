@@ -104,6 +104,7 @@ class _ChatPanelState extends State<ChatPanel> {
     final question = (text ?? _controller.text).trim();
     if (question.isEmpty) return;
 
+    final isFirstMessage = _messages.isEmpty;
     final contextLabel = buildUserContextLabel(widget.profile);
     setState(() {
       _messages.add(_ChatMessage(text: question, isUser: true));
@@ -113,7 +114,7 @@ class _ChatPanelState extends State<ChatPanel> {
 
     String replyText;
     try {
-      replyText = await _chatApi.ask(question, widget.profile);
+      replyText = await _chatApi.ask(question, widget.profile, isFirstMessage: isFirstMessage);
     } on ChatApiException catch (e) {
       replyText = e.message;
     }

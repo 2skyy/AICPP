@@ -55,9 +55,11 @@ class ChatService:
         self.client = client or Anthropic()
         self.model = model
 
-    def ask(self, question: str, profile: dict[str, Any]) -> dict[str, Any]:
+    def ask(
+        self, question: str, profile: dict[str, Any], is_first_message: bool = True
+    ) -> dict[str, Any]:
         items = self._find_relevant_policies(question, profile)
-        answer = self._generate_answer(question, profile, items)
+        answer = self._generate_answer(question, profile, items, is_first_message)
         policies = [
             {"name": item.get("plcyNm", ""), "period": item.get("aplyYmd")}
             for item in items
@@ -79,9 +81,13 @@ class ChatService:
         return [item for item in _extract_items(raw) if _is_open(item, today)]
 
     def _generate_answer(
-        self, question: str, profile: dict[str, Any], items: list[dict[str, Any]]
+        self,
+        question: str,
+        profile: dict[str, Any],
+        items: list[dict[str, Any]],
+        is_first_message: bool,
     ) -> str:
-        system_prompt = self._build_system_prompt(profile, items)
+        system_prompt = self._build_system_prompt(profile, items, is_first_message)
         message = self.client.messages.create(
             model=self.model,
             max_tokens=1500,
@@ -97,17 +103,26 @@ class ChatService:
         return strip_markdown(text)
 
     @staticmethod
-    def _build_system_prompt(profile: dict[str, Any], items: list[dict[str, Any]]) -> str:
+    def _build_system_prompt(
+        profile: dict[str, Any], items: list[dict[str, Any]], is_first_message: bool = True
+    ) -> str:
         age = profile.get("age")
         gpa = profile.get("gpa")
         income_percent = profile.get("income_percent")
         interested_regions = profile.get("interested_regions") or []
+        greeting_instruction = (
+            "이번이 사용자와의 첫 대화니까 '안녕' 등으로 짧게 자기소개하며 인사해도 좋아."
+            if is_first_message
+            else "지금은 이미 진행 중인 대화의 후속 질문이야. '안녕', '나는 폴리야' 같은 "
+            "인사나 자기소개는 하지 말고 바로 답변부터 시작해."
+        )
         lines = [
             "너는 '폴리'라는 이름의 친근한 개구리 청년 정책 안내 어시스턴트야. 아래 "
             "[정책 목록]과 [스크랩한 정책]에 있는 정책만 근거로 답변해.",
             "목록에 없는 내용은 추측하지 말고, 조건에 맞는 정책이 없으면 없다고 솔직하게 말해.",
             "답변은 한국어 반말로 간결하고 친근하게 작성해. 존댓말은 섞지 말고 문장 전체를 "
             "반말로 통일해.",
+            greeting_instruction,
             "사용자가 조건을 충족해서 바로 신청 가능하다고 확신을 갖고 알려주는 문장은 "
             "끝에 🐸 이모지를 붙여. 예: '서울 사는 21살이면 이 3건은 바로 신청 가능해! 🐸'",
             "나이·소득분위처럼 [사용자 정보]에 미상으로 나온 값 때문에 조건 충족 여부를 "

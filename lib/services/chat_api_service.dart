@@ -21,10 +21,13 @@ class ChatApiService {
 
   /// Sends [question] + [profile] to the backend, which looks up relevant
   /// policies and asks Claude to answer using only those as context.
-  Future<String> ask(String question, UserProfile profile) async {
+  /// [isFirstMessage] tells the backend whether 폴리 should introduce
+  /// herself — true only for the first question of a fresh conversation.
+  Future<String> ask(String question, UserProfile profile, {required bool isFirstMessage}) async {
     final uri = Uri.parse('$policyApiBaseUrl/api/chat/ask');
     final body = jsonEncode({
       'question': question,
+      'is_first_message': isFirstMessage,
       'profile': {
         'region': profile.region,
         'enrollment_status': profile.enrollmentStatus,

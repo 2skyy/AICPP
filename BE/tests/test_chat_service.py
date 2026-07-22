@@ -76,6 +76,30 @@ class ChatServiceTest(unittest.TestCase):
 
         policy_service.search.assert_called_once_with(region="서울특별시", size=10)
 
+    def test_greeting_is_allowed_on_the_first_message_by_default(self):
+        policy_service = Mock()
+        policy_service.search.return_value = {"result": {"youthPolicyList": []}}
+        anthropic_client = Mock()
+        anthropic_client.messages.create.return_value = _text_message("안녕!")
+
+        service = ChatService(policy_service, client=anthropic_client)
+        service.ask("주거지원이 궁금해요", {"region": "서울특별시"})
+
+        system_prompt = anthropic_client.messages.create.call_args.kwargs["system"]
+        self.assertIn("첫 대화니까", system_prompt)
+
+    def test_greeting_is_disabled_for_a_follow_up_message(self):
+        policy_service = Mock()
+        policy_service.search.return_value = {"result": {"youthPolicyList": []}}
+        anthropic_client = Mock()
+        anthropic_client.messages.create.return_value = _text_message("확인해드릴게요.")
+
+        service = ChatService(policy_service, client=anthropic_client)
+        service.ask("주거지원이 궁금해요", {"region": "서울특별시"}, is_first_message=False)
+
+        system_prompt = anthropic_client.messages.create.call_args.kwargs["system"]
+        self.assertIn("인사나 자기소개는 하지 말고", system_prompt)
+
     def test_strips_markdown_from_the_generated_answer(self):
         policy_service = Mock()
         policy_service.search.return_value = {"result": {"youthPolicyList": []}}

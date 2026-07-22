@@ -1061,6 +1061,39 @@ void main() {
   });
 
   testWidgets(
+      'Chat panel marks only the first message of a session as is_first_message',
+      (WidgetTester tester) async {
+    final sentFlags = <bool>[];
+    final mockClient = MockClient((request) async {
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      sentFlags.add(body['is_first_message'] as bool);
+      return http.Response(
+        jsonEncode({'answer': '확인해드릴게요.'}),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ChatPanel(
+          profile: sampleProfile(),
+          onClose: () {},
+          chatApiService: ChatApiService(client: mockClient),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('내 지역 청년 주거지원이 궁금해요'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '추가로 궁금한 게 있어요');
+    await tester.tap(find.byIcon(Icons.arrow_upward));
+    await tester.pumpAndSettle();
+
+    expect(sentFlags, [true, false]);
+  });
+
+  testWidgets(
       'Chat panel sends the user\'s scrapped policies along with the question',
       (WidgetTester tester) async {
     Map<String, dynamic>? sentBody;

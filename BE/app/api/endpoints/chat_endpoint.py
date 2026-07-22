@@ -35,6 +35,7 @@ class ProfileIn(BaseModel):
 class ChatRequest(BaseModel):
     question: str
     profile: ProfileIn
+    is_first_message: bool = True
 
 
 def get_chat_service() -> ChatService:
@@ -47,7 +48,7 @@ def get_chat_service() -> ChatService:
 @router.post("/ask")
 def ask(request: ChatRequest, service: ChatService = Depends(get_chat_service)):
     try:
-        return service.ask(request.question, request.profile.model_dump())
+        return service.ask(request.question, request.profile.model_dump(), request.is_first_message)
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except (requests.RequestException, ValueError) as exc:
