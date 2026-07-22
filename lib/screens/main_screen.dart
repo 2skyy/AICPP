@@ -70,8 +70,12 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  /// Native only marks 지역/관심지역 (up to 3 regions), but the web pond map
+  /// shows every region as its own lily pad, so it needs a count for all 17.
+  Set<String> get _countRegions => kIsWeb ? kRegions.toSet() : _allRegions;
+
   Future<void> _loadPolicyCounts() async {
-    final regions = _allRegions;
+    final regions = _countRegions;
     final entries = await Future.wait(regions.map((region) async {
       try {
         // totalCount from the API includes closed/not-yet-open policies, so
@@ -97,15 +101,10 @@ class _MainScreenState extends State<MainScreen> {
     return '$region · $count건';
   }
 
-  /// Only used by [WebRegionMap] (web has no Naver SDK) — mirrors the same
-  /// 지역/관심지역 color split the native markers use below.
-  Map<String, Color> get _webRegionColors => {
-        for (final region in _allRegions)
-          region: region == profile.region ? _homeRegionColor : _interestedRegionColor,
-      };
-
-  Map<String, String> get _webRegionLabels =>
-      {for (final region in _allRegions) region: _captionFor(region)};
+  /// Only used by [WebRegionMap] (web has no Naver SDK) — every region's
+  /// count, so each gets its own lily pad sized accordingly.
+  Map<String, int?> get _webRegionCounts =>
+      {for (final region in kRegions) region: _policyCounts[region]};
 
   Set<NMarker> _buildMarkers() {
     return {
@@ -251,18 +250,21 @@ class _MainScreenState extends State<MainScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              if (kIsWeb || (naverMapClientId.isNotEmpty && isNaverMapSupportedPlatform))
+              // 웹 연잎 지도는 진한 초록(내 지역)/개구리 마크로 이미 구분이
+              // 되고 색 체계도 달라서, 범례는 실제 네이버 지도에서만 보여준다.
+              if (!kIsWeb && naverMapClientId.isNotEmpty && isNaverMapSupportedPlatform) ...[
                 const _MapLegend(),
-              if (kIsWeb || (naverMapClientId.isNotEmpty && isNaverMapSupportedPlatform))
                 const SizedBox(height: 12),
+              ],
               Expanded(
-                // 네이버 지도 SDK는 웹을 지원하지 않아서, 웹에서만 실제 인터랙티브
-                // 지도(OpenStreetMap 기반 WebRegionMap)로 대체한다. 네이티브
-                // (iOS/Android)는 아래 분기 그대로 실제 네이버 지도를 쓴다.
+                // 네이버 지도 SDK는 웹을 지원하지 않아서, 웹에서만 연잎 지도
+                // (WebRegionMap)로 대체한다. 네이티브(iOS/Android)는 아래 분기
+                // 그대로 실제 네이버 지도를 쓴다.
                 child: kIsWeb
                     ? WebRegionMap(
-                        regionColors: _webRegionColors,
-                        regionLabels: _webRegionLabels,
+                        regionCounts: _webRegionCounts,
+                        homeRegion: profile.region,
+                        interestedRegions: _interestedRegions,
                         onRegionTap: _openPolicyListSheet,
                       )
                     : (naverMapClientId.isEmpty || !isNaverMapSupportedPlatform

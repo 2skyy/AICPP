@@ -1,191 +1,252 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'dart:math' as math;
 
-import '../constants/region_latlng.dart';
+import 'package:flutter/material.dart';
+
 import '../theme/toss_colors.dart';
 
-const _minZoom = 5.0;
-const _maxZoom = 12.0;
+/// Fractional (0~1) center position of each region's lily pad within the
+/// available canvas — a loose, hand-placed approximation of Korea's shape
+/// (not real geographic projection), spaced out enough that 17 differently
+/// sized bubbles don't overlap.
+const _regionPositions = <String, Offset>{
+  '인천광역시': Offset(0.16, 0.22),
+  '서울특별시': Offset(0.36, 0.15),
+  '경기도': Offset(0.34, 0.32),
+  '강원특별자치도': Offset(0.66, 0.14),
+  '충청북도': Offset(0.50, 0.34),
+  '세종특별자치시': Offset(0.40, 0.46),
+  '충청남도': Offset(0.24, 0.44),
+  '대전광역시': Offset(0.42, 0.56),
+  '경상북도': Offset(0.72, 0.38),
+  '대구광역시': Offset(0.62, 0.50),
+  '전북특별자치도': Offset(0.26, 0.60),
+  '경상남도': Offset(0.58, 0.66),
+  '부산광역시': Offset(0.72, 0.70),
+  '울산광역시': Offset(0.83, 0.56),
+  '광주광역시': Offset(0.18, 0.70),
+  '전라남도': Offset(0.32, 0.78),
+  '제주특별자치도': Offset(0.26, 0.94),
+};
 
-/// Real interactive map (OpenStreetMap via `flutter_map`) shown on web, where
-/// the native Naver Maps SDK used by [main_screen.dart] isn't available.
-/// Native platforms are untouched — this widget is web-only.
-class WebRegionMap extends StatefulWidget {
+/// Decorative background ripples — purely cosmetic, no data behind them.
+const _ripples = <Offset>[
+  Offset(0.22, 0.08),
+  Offset(0.82, 0.18),
+  Offset(0.86, 0.46),
+  Offset(0.10, 0.58),
+  Offset(0.80, 0.82),
+];
+
+const _minPadDiameter = 64.0;
+const _maxPadDiameter = 116.0;
+
+/// Stylized "연잎(lily pad) 지도" shown on web, where the native Naver Maps
+/// SDK used by [main_screen.dart] isn't available. Not a real map (no real
+/// geography/zoom) — every region is shown at once as a pad sized by policy
+/// count, since that reads more clearly as a small illustration than as a
+/// sparse, mostly-empty real map would. Native platforms are untouched.
+class WebRegionMap extends StatelessWidget {
   const WebRegionMap({
     super.key,
-    required this.regionColors,
-    required this.regionLabels,
+    required this.regionCounts,
+    required this.homeRegion,
+    required this.interestedRegions,
     required this.onRegionTap,
   });
 
-  /// Fill color per region shown on the map. Regions not present here don't
-  /// get a marker at all (matches the native map only pinning 지역/관심지역).
-  final Map<String, Color> regionColors;
-
-  /// Label text (e.g. "서울특별시 · 49건") shown on each region's marker.
-  final Map<String, String> regionLabels;
-
+  /// Policy count per region; null while still loading, negative if that
+  /// region's fetch failed (mirrors [MainScreen._captionFor]'s convention).
+  final Map<String, int?> regionCounts;
+  final String homeRegion;
+  final Set<String> interestedRegions;
   final ValueChanged<String> onRegionTap;
 
   @override
-  State<WebRegionMap> createState() => _WebRegionMapState();
-}
-
-class _WebRegionMapState extends State<WebRegionMap> {
-  final _mapController = MapController();
-
-  @override
-  void dispose() {
-    _mapController.dispose();
-    super.dispose();
-  }
-
-  void _zoomBy(double delta) {
-    final camera = _mapController.camera;
-    final targetZoom = (camera.zoom + delta).clamp(_minZoom, _maxZoom);
-    _mapController.move(camera.center, targetZoom);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final markers = [
-      for (final entry in widget.regionColors.entries)
-        if (kRegionLatLng[entry.key] case final point?)
-          Marker(
-            point: point,
-            width: 86,
-            height: 36,
-            child: _RegionMarker(
-              label: widget.regionLabels[entry.key] ?? entry.key,
-              color: entry.value,
-              onTap: () => widget.onRegionTap(entry.key),
-            ),
-          ),
-    ];
+    final maxCount = regionCounts.values
+        .whereType<int>()
+        .where((c) => c > 0)
+        .fold(0, math.max);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
-      child: Stack(
-        children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: const MapOptions(
-              initialCenter: LatLng(36.5, 127.8),
-              initialZoom: 6.5,
-              minZoom: _minZoom,
-              maxZoom: _maxZoom,
-              // 트랙패드 두 손가락 제스처가 회전으로 인식돼서 지구본을 돌리는
-              // 것처럼 보이는 문제가 있어, 회전만 빼고 나머지 제스처는 그대로 둔다.
-              interactionOptions: InteractionOptions(
-                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-              ),
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.aicpp.aicpp',
-              ),
-              MarkerLayer(markers: markers),
-              // OpenStreetMap 이용 정책상 출처 표기는 지워도 안 되지만, 눈에 덜
-              // 띄게 최소한의 크기로만 둔다.
-              const SimpleAttributionWidget(
-                source: Text('© OpenStreetMap', style: TextStyle(fontSize: 9)),
-              ),
-            ],
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFCFEEF6), Color(0xFFA9D9E6)],
           ),
-          Positioned(
-            right: 12,
-            top: 12,
-            child: _ZoomControl(
-              onZoomIn: () => _zoomBy(1),
-              onZoomOut: () => _zoomBy(-1),
-            ),
-          ),
-        ],
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final w = constraints.maxWidth;
+            final h = constraints.maxHeight;
+            return Stack(
+              children: [
+                for (final offset in _ripples) _Ripple(offset: offset, w: w, h: h),
+                for (final entry in _regionPositions.entries)
+                  _LilyPad(
+                    region: entry.key,
+                    center: entry.value,
+                    canvasWidth: w,
+                    canvasHeight: h,
+                    count: regionCounts[entry.key],
+                    maxCount: maxCount,
+                    isHome: entry.key == homeRegion,
+                    isInterested: interestedRegions.contains(entry.key),
+                    onTap: () => onRegionTap(entry.key),
+                  ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 }
 
-class _ZoomControl extends StatelessWidget {
-  const _ZoomControl({required this.onZoomIn, required this.onZoomOut});
+class _Ripple extends StatelessWidget {
+  const _Ripple({required this.offset, required this.w, required this.h});
 
-  final VoidCallback onZoomIn;
-  final VoidCallback onZoomOut;
+  final Offset offset;
+  final double w;
+  final double h;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 4)],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            onPressed: onZoomIn,
-            icon: const Icon(Icons.add, size: 20),
-            color: TossColors.textPrimary,
-            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-            padding: EdgeInsets.zero,
+    return Positioned(
+      left: w * offset.dx - 40,
+      top: h * offset.dy - 14,
+      child: IgnorePointer(
+        child: Container(
+          width: 80,
+          height: 28,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.25),
+            borderRadius: BorderRadius.circular(20),
           ),
-          const Divider(height: 1),
-          IconButton(
-            onPressed: onZoomOut,
-            icon: const Icon(Icons.remove, size: 20),
-            color: TossColors.textPrimary,
-            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-            padding: EdgeInsets.zero,
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _RegionMarker extends StatelessWidget {
-  const _RegionMarker({required this.label, required this.color, required this.onTap});
+double _diameterFor(int? count, int maxCount) {
+  if (count == null || count <= 0 || maxCount <= 0) return _minPadDiameter;
+  final t = math.sqrt(count / maxCount).clamp(0.0, 1.0);
+  return _minPadDiameter + (_maxPadDiameter - _minPadDiameter) * t;
+}
 
-  final String label;
-  final Color color;
+class _LilyPad extends StatelessWidget {
+  const _LilyPad({
+    required this.region,
+    required this.center,
+    required this.canvasWidth,
+    required this.canvasHeight,
+    required this.count,
+    required this.maxCount,
+    required this.isHome,
+    required this.isInterested,
+    required this.onTap,
+  });
+
+  final String region;
+  final Offset center;
+  final double canvasWidth;
+  final double canvasHeight;
+  final int? count;
+  final int maxCount;
+  final bool isHome;
+  final bool isInterested;
   final VoidCallback onTap;
 
+  Color get _padColor {
+    if (isHome) return TossColors.assistantPrimary;
+    if (isInterested) return const Color(0xFF74C69D);
+    return const Color(0xFFB7E4C7);
+  }
+
+  String get _countLabel {
+    if (count == null) return '';
+    if (count! < 0) return '조회 실패';
+    return '$count';
+  }
+
   @override
   Widget build(BuildContext context) {
-    // "서울특별시 · 49건" 형태의 라벨을 지역명/건수 두 줄로 나눠서, 좁은
-    // 마커 안에서도 둘 다 뚜렷하게 보이게 한다.
-    final parts = label.split(' · ');
+    final diameter = _diameterFor(count, maxCount);
+    final left = canvasWidth * center.dx - diameter / 2;
+    final top = canvasHeight * center.dy - diameter / 2;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(6),
-          boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 3)],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    return Positioned(
+      left: left,
+      top: top,
+      width: diameter,
+      height: diameter,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
           children: [
-            Text(
-              parts.first,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
+            // 연잎 잎자루(작은 사선) — 장식용.
+            Positioned(
+              right: diameter * 0.06,
+              top: diameter * 0.02,
+              child: Transform.rotate(
+                angle: -0.6,
+                child: Container(
+                  width: 2.5,
+                  height: diameter * 0.22,
+                  color: _padColor.withValues(alpha: 0.9),
+                ),
+              ),
             ),
-            if (parts.length > 1)
-              Text(
-                parts[1],
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 9, color: Colors.white),
+            Container(
+              decoration: BoxDecoration(
+                color: _padColor,
+                shape: BoxShape.circle,
+                boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 4)],
+              ),
+              alignment: Alignment.center,
+              padding: const EdgeInsets.all(4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    region.replaceFirst(
+                        RegExp(r'(특별자치시|특별자치도|광역시|특별시|도)$'), ''),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: isHome ? 14 : 12,
+                      fontWeight: isHome ? FontWeight.w800 : FontWeight.w600,
+                      color: TossColors.textPrimary,
+                    ),
+                  ),
+                  if (_countLabel.isNotEmpty)
+                    Text(
+                      _countLabel,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: TossColors.textPrimary.withValues(alpha: 0.65),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (isHome)
+              Positioned(
+                top: -diameter * 0.42,
+                child: IgnorePointer(
+                  child: Image.asset(
+                    'assets/icon/assistant_icon.png',
+                    width: diameter * 0.62,
+                    height: diameter * 0.62,
+                  ),
+                ),
               ),
           ],
         ),

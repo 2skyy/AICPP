@@ -10,6 +10,7 @@ import 'package:aicpp/models/policy_item.dart';
 import 'package:aicpp/models/user_profile.dart';
 import 'package:aicpp/screens/home_shell.dart';
 import 'package:aicpp/screens/main_screen.dart';
+import 'package:aicpp/widgets/web_region_map.dart';
 import 'package:aicpp/screens/policy_detail_screen.dart';
 import 'package:aicpp/screens/profile_setup_screen.dart';
 import 'package:aicpp/screens/report_screen.dart';
@@ -425,6 +426,49 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('제주특별자치도'), findsNothing);
+  });
+
+  testWidgets(
+      'WebRegionMap shows every region as a pad, sizes them by count, and taps report the right region',
+      (WidgetTester tester) async {
+    String? tapped;
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 400,
+          height: 600,
+          child: WebRegionMap(
+            regionCounts: const {
+              '서울특별시': 42,
+              '부산광역시': 22,
+              '제주특별자치도': -1,
+              // 나머지 지역은 아직 로딩 중이라 카운트가 없다.
+            },
+            homeRegion: '서울특별시',
+            interestedRegions: const {'부산광역시'},
+            onRegionTap: (region) => tapped = region,
+          ),
+        ),
+      ),
+    ));
+
+    // 접미사(특별시/광역시 등)를 뗀 짧은 이름으로 표시된다.
+    expect(find.text('서울'), findsOneWidget);
+    expect(find.text('42'), findsOneWidget);
+    expect(find.text('부산'), findsOneWidget);
+    expect(find.text('22'), findsOneWidget);
+    expect(find.text('조회 실패'), findsOneWidget);
+    // 아직 카운트가 없는 지역(예: 강원)도 패드 자체는 뜬다.
+    expect(find.text('강원'), findsOneWidget);
+
+    // 개구리 마스코트는 내 지역(서울) 위에만 뜬다.
+    expect(find.byWidgetPredicate((w) =>
+        w is Image && w.image is AssetImage &&
+        (w.image as AssetImage).assetName == 'assets/icon/assistant_icon.png'), findsOneWidget);
+
+    await tester.tap(find.text('부산'));
+    expect(tapped, '부산광역시');
   });
 
   testWidgets(
