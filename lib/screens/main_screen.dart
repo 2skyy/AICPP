@@ -233,7 +233,7 @@ class _MainScreenState extends State<MainScreen> {
                 children: [
                   const Expanded(
                     child: Text(
-                      '관심지역 지도',
+                      '폴리 지도',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
@@ -250,9 +250,12 @@ class _MainScreenState extends State<MainScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              // 웹 연잎 지도는 진한 초록(내 지역)/개구리 마크로 이미 구분이
-              // 되고 색 체계도 달라서, 범례는 실제 네이버 지도에서만 보여준다.
-              if (!kIsWeb && naverMapClientId.isNotEmpty && isNaverMapSupportedPlatform) ...[
+              // 웹 연잎 지도는 네이티브 지도와 색 체계가 달라서(초록 톤 3단계),
+              // 범례도 그에 맞는 걸 따로 보여준다.
+              if (kIsWeb) ...[
+                const _WebMapLegend(),
+                const SizedBox(height: 12),
+              ] else if (naverMapClientId.isNotEmpty && isNaverMapSupportedPlatform) ...[
                 const _MapLegend(),
                 const SizedBox(height: 12),
               ],
@@ -318,6 +321,21 @@ class _MapLegend extends StatelessWidget {
         _LegendItem(color: _homeRegionColor, label: '내 지역'),
         SizedBox(width: 16),
         _LegendItem(color: _interestedRegionColor, label: '관심지역'),
+      ],
+    );
+  }
+}
+
+class _WebMapLegend extends StatelessWidget {
+  const _WebMapLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: const [
+        _LegendItem(color: kWebMapHomeColor, label: '내 지역'),
+        SizedBox(width: 16),
+        _LegendItem(color: kWebMapInterestedColor, label: '관심지역'),
       ],
     );
   }

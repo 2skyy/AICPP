@@ -40,6 +40,12 @@ const _ripples = <Offset>[
 const _minPadDiameter = 64.0;
 const _maxPadDiameter = 116.0;
 
+/// Pad colors by tier — also shown in [MainScreen]'s legend (`main_screen.dart`),
+/// so keep this the single source of truth for both.
+const kWebMapHomeColor = TossColors.assistantPrimary;
+const kWebMapInterestedColor = Color(0xFF74C69D);
+const kWebMapOtherColor = Color(0xFFB7E4C7);
+
 /// Stylized "연잎(lily pad) 지도" shown on web, where the native Naver Maps
 /// SDK used by [main_screen.dart] isn't available. Not a real map (no real
 /// geography/zoom) — every region is shown at once as a pad sized by policy
@@ -162,9 +168,9 @@ class _LilyPad extends StatelessWidget {
   final VoidCallback onTap;
 
   Color get _padColor {
-    if (isHome) return TossColors.assistantPrimary;
-    if (isInterested) return const Color(0xFF74C69D);
-    return const Color(0xFFB7E4C7);
+    if (isHome) return kWebMapHomeColor;
+    if (isInterested) return kWebMapInterestedColor;
+    return kWebMapOtherColor;
   }
 
   String get _countLabel {
