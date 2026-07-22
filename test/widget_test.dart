@@ -560,13 +560,20 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    String ymd(DateTime d) =>
+        '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
+    final soonDeadline = DateTime.now().add(const Duration(days: 10));
+
     final mockClient = MockClient((request) async {
       return http.Response(
         jsonEncode({
           'result': {
             'pagging': {'totCount': 1},
             'youthPolicyList': [
-              {'plcyNm': '청년월세지원', 'aplyYmd': '20260101 ~ 20261231'},
+              {
+                'plcyNm': '청년월세지원',
+                'aplyYmd': '${ymd(DateTime.now())} ~ ${ymd(soonDeadline)}',
+              },
             ],
           },
         }),
@@ -653,13 +660,20 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    String ymd(DateTime d) =>
+        '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
+    final soonDeadline = DateTime.now().add(const Duration(days: 10));
+
     final mockClient = MockClient((request) async {
       return http.Response(
         jsonEncode({
           'result': {
             'pagging': {'totCount': 1},
             'youthPolicyList': [
-              {'plcyNm': '청년월세지원', 'aplyYmd': '20260101 ~ 20261231'},
+              {
+                'plcyNm': '청년월세지원',
+                'aplyYmd': '${ymd(DateTime.now())} ~ ${ymd(soonDeadline)}',
+              },
             ],
           },
         }),
@@ -772,6 +786,72 @@ void main() {
     expect(find.text('김철수'), findsOneWidget);
     expect(find.text('한국과학기술원'), findsOneWidget);
     expect(find.text('홍길동'), findsNothing);
+  });
+
+  testWidgets(
+      'Changing 내 지역 to a former 관심지역 frees up a slot for a new one',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(MaterialApp(
+      home: HomeShell(
+        profile: UserProfile(
+          name: '홍길동',
+          email: 'test@example.com',
+          birthDate: DateTime(2000, 1, 1),
+          gender: '남성',
+          school: '한국대학교',
+          gpa: 4.0,
+          enrollmentStatus: '재학',
+          region: '서울특별시',
+          interestedRegions: const ['경기도', '인천광역시'],
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('프로필'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.edit_outlined));
+    await tester.pumpAndSettle();
+
+    // 지역 선택기는 성별(0)/병역(1, 남성이라 나타남)/재학상태(2) 다음.
+    final selectors = find.byType(TossChipSelector);
+    await tester.ensureVisible(
+        find.descendant(of: selectors.at(3), matching: find.text('경기도')));
+    await tester.tap(find.descendant(of: selectors.at(3), matching: find.text('경기도')));
+    await tester.pump();
+
+    await tester.ensureVisible(find.text('저장'));
+    await tester.tap(find.text('저장'));
+    await tester.pumpAndSettle();
+
+    // 내 지역이 경기도가 됐으니, 관심지역엔 인천광역시 하나만 남아있어야
+    // 하고(예전엔 경기도가 몰래 관심지역 자리를 계속 차지하고 있었다), 그
+    // 자리로 새 지역(울산광역시)을 고를 수 있어야 한다.
+    await tester.tap(find.text('지도'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.add_location_alt_outlined));
+    await tester.pumpAndSettle();
+
+    final sheetSelector = find.byType(TossChipSelector);
+    expect(
+        tester
+            .widget<TossChipSelector>(sheetSelector)
+            .disabled
+            .contains('울산광역시'),
+        isFalse);
+
+    await tester.tap(find.descendant(of: sheetSelector, matching: find.text('울산광역시')));
+    await tester.pump();
+    await tester.tap(find.text('완료'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('인천광역시'), findsOneWidget);
+    expect(find.text('울산광역시'), findsOneWidget);
   });
 
   testWidgets('Profile tab shows the selected interests, or an empty-state message',
@@ -1985,6 +2065,11 @@ void main() {
 
   testWidgets('Report tab shows the matching gauge, category donut, and deadline list',
       (WidgetTester tester) async {
+    // 리포트 탭의 마감임박 목록에 뜨려면(30일 이내 필터) 가까운 미래 날짜가 필요하다.
+    String ymd(DateTime d) =>
+        '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
+    final soonDeadline = DateTime.now().add(const Duration(days: 10));
+
     final mockClient = MockClient((request) async {
       expect(
         ['서울특별시', '부산광역시'].contains(request.url.queryParameters['region']),
@@ -2002,7 +2087,7 @@ void main() {
                 'mclsfNm': '주택 및 거주지',
                 'sprtTrgtMinAge': '19',
                 'sprtTrgtMaxAge': '34',
-                'aplyYmd': '20260101 ~ 20261231',
+                'aplyYmd': '${ymd(DateTime.now())} ~ ${ymd(soonDeadline)}',
               },
               {
                 'plcyNo': '2',
@@ -2042,6 +2127,46 @@ void main() {
     await tester.tap(find.text('청년월세지원'));
     await tester.pumpAndSettle();
     expect(find.text('정책 상세'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Report tab excludes policies whose deadline is more than 30 days away from 마감임박',
+      (WidgetTester tester) async {
+    String ymd(DateTime d) =>
+        '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
+    final farDeadline = DateTime.now().add(const Duration(days: 45));
+
+    final mockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'result': {
+            'pagging': {'totCount': 1},
+            'youthPolicyList': [
+              {
+                'plcyNo': '1',
+                'plcyNm': '한참 남은 정책',
+                'aplyYmd': '${ymd(DateTime.now())} ~ ${ymd(farDeadline)}',
+              },
+            ],
+          },
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    await tester.pumpWidget(MaterialApp(
+      home: ReportScreen(
+        profile: sampleProfile(interestedRegions: const ['부산광역시']),
+        onProfileUpdated: (_) {},
+        policyApiService: PolicyApiService(client: mockClient),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('마감임박'), findsOneWidget);
+    expect(find.text('30일 이내로 마감하는 정책이 없어요'), findsOneWidget);
+    expect(find.text('한참 남은 정책'), findsNothing);
   });
 
   testWidgets(

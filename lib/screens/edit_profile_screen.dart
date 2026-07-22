@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../constants/interests.dart';
 import '../constants/median_income.dart';
@@ -148,6 +150,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _showErrors = true);
     if (!_canSubmit || _isSubmitting) return;
 
+    // 내 지역을 이전에 관심지역이었던 곳으로 바꾸면, 그 지역이 관심지역 목록에도
+    // 계속 남아있게 된다 — 관심지역 선택 시트는 "내 지역"을 항상 자동으로
+    // 선택된 것처럼 보여주면서도 최대 2개 제한 계산에는 그대로 포함시키기
+    // 때문에, 사용자 눈엔 안 보이는 관심지역 한 자리가 몰래 채워진 채로 남아
+    // 새 관심지역을 하나밖에 못 고르는 버그로 이어진다. 그래서 내 지역과
+    // 겹치는 항목은 여기서 미리 제거해둔다.
+    final interestedRegions =
+        widget.profile.interestedRegions.where((r) => r != _region).toList();
+
     final updated = widget.profile.copyWith(
       name: _nameController.text.trim(),
       email: _emailController.text,
@@ -157,6 +168,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       gpa: _isSchoolApplicable ? double.parse(_gpaController.text) : 0,
       enrollmentStatus: _enrollmentStatus,
       region: _region,
+      interestedRegions: interestedRegions,
       interests: _interests.toList(),
       householdSize: _householdSize,
       monthlyIncome: _monthlyIncome,
@@ -172,6 +184,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isSubmitting = true);
     try {
       await _profileApiService.saveProfile(accessToken, updated);
+      if (interestedRegions.length != widget.profile.interestedRegions.length) {
+        // 실패해도 로컬 상태는 이미 반영됐으니 조용히 무시한다 (home_shell의
+        // 관심지역 저장과 같은 정책).
+        unawaited(_profileApiService
+            .saveInterestedRegions(accessToken, interestedRegions)
+            .catchError((_) => interestedRegions));
+      }
       if (!mounted) return;
       Navigator.of(context).pop(updated);
     } catch (e) {

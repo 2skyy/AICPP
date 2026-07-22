@@ -221,7 +221,14 @@ class _ReportScreenState extends State<ReportScreen> {
       categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
     }
 
-    final upcoming = items.where((item) => item.deadline != null).toList()
+    // 마감이 몇 달씩(세 자리 D-day) 남은 정책까지 "임박"이라고 보여주면 의미가
+    // 없어서, 30일 이내로 남은 것만 후보로 삼는다 (아래에서 그중 가까운 5건만
+    // 표시).
+    final today = DateUtils.dateOnly(DateTime.now());
+    final upcoming = items
+        .where((item) => item.deadline != null)
+        .where((item) => item.deadline!.difference(today).inDays <= 30)
+        .toList()
       ..sort((a, b) => a.deadline!.compareTo(b.deadline!));
 
     final hasGap = matching < total;
@@ -278,7 +285,7 @@ class _ReportScreenState extends State<ReportScreen> {
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 12),
           child: Text(
-            '마감일이 확인된 정책이 없어요',
+            '30일 이내로 마감하는 정책이 없어요',
             style: TextStyle(fontSize: 14, color: TossColors.textSecondary),
           ),
         )

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import '../config/naver_map_config.dart';
@@ -52,6 +52,22 @@ class _MainScreenState extends State<MainScreen> {
     // WebRegionMap엔 그런 "지도 준비 완료" 콜백이 없어서 여기서 직접 불러야
     // 웹에서도 지역 라벨에 건수가 뜬다.
     if (kIsWeb) unawaited(_loadPolicyCounts());
+  }
+
+  @override
+  void didUpdateWidget(covariant MainScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // `_interestedRegions`는 처음 빌드될 때 한 번만 복사해두는 값이라,
+    // HomeShell이 새 profile을 내려줘도(예: 프로필 수정에서 내 지역을 바꾸면서
+    // 관심지역 목록이 함께 바뀐 경우) 저절로 안 따라간다 — 그래서 프로필의
+    // 관심지역이 실제로 달라졌을 때만 다시 동기화한다.
+    if (!setEquals(
+        oldWidget.profile.interestedRegions.toSet(),
+        widget.profile.interestedRegions.toSet())) {
+      setState(() => _interestedRegions = widget.profile.interestedRegions.toSet());
+      unawaited(_refreshMarkers());
+      unawaited(_loadPolicyCounts());
+    }
   }
 
   Future<void> _loadPolicyCounts() async {
