@@ -12,14 +12,20 @@ import 'edit_profile_screen.dart';
 import 'interested_region_screen.dart';
 import 'policy_detail_screen.dart';
 
-const _categoryColors = [
-  TossColors.primary,
-  Color(0xFFFF8B3D),
-  Color(0xFF2ECC71),
-  Color(0xFFE74C3C),
-  Color(0xFF9B59B6),
-  Color(0xFFF1C40F),
-];
+// 카테고리별로 항상 같은 색이 나오도록 이름에 고정 매핑한다 (건수 정렬 순서에
+// 따라 색이 바뀌던 이전 방식 대신).
+const _categoryColors = <String, Color>{
+  '주거': TossColors.primary,
+  '취업': Color(0xFFFF8B3D),
+  '창업': Color(0xFF2ECC71),
+  '교육': Color(0xFFE74C3C),
+  '복지': Color(0xFF9B59B6),
+  '문화': Color(0xFFF1C40F),
+  '건강': Color(0xFF3498DB),
+  '금융': Color(0xFF1ABC9C),
+  '국제교류': Color(0xFFE67E22),
+};
+const _fallbackCategoryColor = Color(0xFF95A5A6);
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({
@@ -215,8 +221,10 @@ class _ReportScreenState extends State<ReportScreen> {
     final matching = matchedItems.length;
     final total = items.length;
 
+    // 도넛은 시스템이 매칭시켜준 정책 전체가 아니라, 사용자가 직접 스크랩한
+    // 정책만 반영한다 — "내가 고른 정책"의 분포를 보여주는 게 목적이라서.
     final categoryCounts = <String, int>{};
-    for (final item in matchedItems) {
+    for (final item in widget.profile.scrappedPolicies) {
       final category = item.categoryLabel ?? '기타';
       categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
     }
@@ -448,10 +456,10 @@ class _CategoryDonut extends StatelessWidget {
                     sectionsSpace: 2,
                     centerSpaceRadius: 32,
                     sections: [
-                      for (var i = 0; i < entries.length; i++)
+                      for (final entry in entries)
                         PieChartSectionData(
-                          value: entries[i].value.toDouble(),
-                          color: _categoryColors[i % _categoryColors.length],
+                          value: entry.value.toDouble(),
+                          color: _categoryColors[entry.key] ?? _fallbackCategoryColor,
                           showTitle: false,
                           radius: 24,
                         ),
@@ -478,7 +486,7 @@ class _CategoryDonut extends StatelessWidget {
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: _categoryColors[i % _categoryColors.length],
+                      color: _categoryColors[entries[i].key] ?? _fallbackCategoryColor,
                       shape: BoxShape.circle,
                     ),
                   ),

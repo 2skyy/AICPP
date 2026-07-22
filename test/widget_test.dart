@@ -1190,7 +1190,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Conversation was archived and the view reset to the empty state.
-    expect(find.text('어떤 정책이 궁금하신가요?'), findsOneWidget);
+    expect(find.text('안녕, 난 폴리야! 🐸'), findsOneWidget);
     expect(
         tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.history)).onPressed,
         isNotNull);
@@ -2150,7 +2150,9 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(
       home: ReportScreen(
-        profile: sampleProfile(interestedRegions: const ['부산광역시']),
+        profile: sampleProfile(interestedRegions: const ['부산광역시'], scrappedPolicies: const [
+          PolicyItem(name: '청년월세지원', policyNo: '1', subCategory: '주택 및 거주지'),
+        ]),
         onProfileUpdated: (_) {},
         policyApiService: PolicyApiService(client: mockClient),
       ),
@@ -2163,8 +2165,9 @@ void main() {
     expect(find.text('청년월세지원'), findsOneWidget);
     expect(find.textContaining('D-'), findsOneWidget);
 
-    // The category donut is built only from policies the user actually
-    // qualifies for (주거, age-eligible) — not the age-ineligible one (복지).
+    // The category donut is built only from policies the user has scrapped
+    // (주거) — not from every eligible policy in the region (복지 wasn't
+    // scrapped, even though it's returned by the mock API).
     expect(find.text('주거'), findsOneWidget);
     expect(find.text('복지'), findsNothing);
 

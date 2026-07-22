@@ -248,11 +248,19 @@ class _SuggestedQuestions extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Text(
-            '어떤 정책이 궁금하신가요?',
+            '안녕, 난 폴리야! 🐸',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
               color: TossColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '나한테 질문 줘서 고마워~ 어떤 정책이 궁금해?',
+            style: TextStyle(
+              fontSize: 13,
+              color: TossColors.textSecondary,
             ),
           ),
           const SizedBox(height: 12),
