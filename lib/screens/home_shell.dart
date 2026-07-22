@@ -152,6 +152,10 @@ class _HomeShellState extends State<HomeShell> {
                   child: FloatingActionButton(
                     heroTag: 'chat_toggle',
                     backgroundColor: TossColors.primary,
+                    // Material 3 기본 모양은 완전한 원이 아니라 모서리가 둥근
+                    // 사각형(16px)이라, 원형 아이콘 주변에 초록 모서리가 살짝
+                    // 삐져나와 보였다. 명시적으로 원으로 고정한다.
+                    shape: const CircleBorder(),
                     onPressed: _toggleChat,
                     child: _chatOpen
                         ? const Icon(Icons.close, color: Colors.white)
