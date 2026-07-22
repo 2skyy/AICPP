@@ -221,11 +221,12 @@ class _ReportScreenState extends State<ReportScreen> {
     final matching = matchedItems.length;
     final total = items.length;
 
-    // 도넛은 시스템이 매칭시켜준 정책 전체가 아니라, 사용자가 직접 스크랩한
-    // 정책만 반영한다 — "내가 고른 정책"의 분포를 보여주는 게 목적이라서.
+    // 도넛은 자격 되는 정책 중, 사용자가 관심사로 고른 카테고리만 집계한다 —
+    // 관심사를 프로필에서 추가/삭제하면 여기 분포도 그대로 따라 바뀐다.
     final categoryCounts = <String, int>{};
-    for (final item in widget.profile.scrappedPolicies) {
-      final category = item.categoryLabel ?? '기타';
+    for (final item in matchedItems) {
+      final category = item.categoryLabel;
+      if (category == null || !widget.profile.interests.contains(category)) continue;
       categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
     }
 

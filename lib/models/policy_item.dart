@@ -193,9 +193,9 @@ class PolicyItem {
   /// snapshot.
   final int? preciseSupportAmount;
 
-  /// Soft eligibility check used by the report tab's matching-rate gauge.
-  /// Composes [ageMatches] and [incomeMatches] so callers can also ask which
-  /// specific condition excluded a policy.
+  /// Soft eligibility check used by the report tab's matching-rate gauge and
+  /// category donut. Composes [ageMatches] and [incomeMatches] so callers can
+  /// also ask which specific condition excluded a policy.
   bool matchesProfile(UserProfile profile) => ageMatches(profile) && incomeMatches(profile);
 
   /// Defaults to "matches" when the user's age is unknown, since we can't

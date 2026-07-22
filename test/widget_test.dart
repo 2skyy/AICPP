@@ -2168,9 +2168,9 @@ void main() {
               },
               {
                 'plcyNo': '2',
-                'plcyNm': '고령자 지원금',
+                'plcyNm': '저소득층 지원금',
                 'mclsfNm': '취약계층 및 금융지원',
-                'sprtTrgtMinAge': '60',
+                'sprtTrgtMinAge': '19',
                 'sprtTrgtMaxAge': '80',
               },
             ],
@@ -2180,14 +2180,20 @@ void main() {
         headers: {'content-type': 'application/json'},
       );
     });
+    final newsMockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({'articles': []}),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
 
     await tester.pumpWidget(MaterialApp(
       home: ReportScreen(
-        profile: sampleProfile(interestedRegions: const ['부산광역시'], scrappedPolicies: const [
-          PolicyItem(name: '청년월세지원', policyNo: '1', subCategory: '주택 및 거주지'),
-        ]),
+        profile: sampleProfile(interestedRegions: const ['부산광역시'], interests: const ['주거']),
         onProfileUpdated: (_) {},
         policyApiService: PolicyApiService(client: mockClient),
+        newsApiService: NewsApiService(client: newsMockClient),
       ),
     ));
     await tester.pumpAndSettle();
@@ -2198,9 +2204,10 @@ void main() {
     expect(find.text('청년월세지원'), findsOneWidget);
     expect(find.textContaining('D-'), findsOneWidget);
 
-    // The category donut is built only from policies the user has scrapped
-    // (주거) — not from every eligible policy in the region (복지 wasn't
-    // scrapped, even though it's returned by the mock API).
+    // The category donut is built from every age/income-eligible policy
+    // (both mock policies match the sample profile's age), but only counts
+    // categories the user actually picked as 관심사 — 저소득층 지원금 is
+    // eligible too, but its category(복지) isn't one of the user's interests.
     expect(find.text('주거'), findsOneWidget);
     expect(find.text('복지'), findsNothing);
 
