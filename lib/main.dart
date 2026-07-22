@@ -32,6 +32,12 @@ class MyApp extends StatelessWidget {
           seedColor: TossColors.primary,
           primary: TossColors.primary,
         ),
+        // Material 3 기본값은 로딩 스피너 뒤에 옅은 색 원형 트랙(테두리)을
+        // 깔아주는데, 우리 배경(흰색)과 어긋나 보여서 꺼둔다 — 도는 호(arc)만
+        // 보이는 예전 스타일로 통일.
+        progressIndicatorTheme: const ProgressIndicatorThemeData(
+          circularTrackColor: Colors.transparent,
+        ),
       ),
       home: LoginScreen(authApiService: authApiService, profileApiService: profileApiService),
     );
