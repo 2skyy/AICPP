@@ -3,11 +3,9 @@ import 'package:flutter/material.dart';
 class TossColors {
   TossColors._();
 
-  static const primary = Color(0xFF3182F6);
-
-  /// 모아폴리 정책 어시스턴트(폴리) 전용 강조색 — 앱 아이콘/스플래시의 개구리
-  /// 몸통 초록색과 맞췄다. 그 외 화면은 계속 [primary]를 쓴다.
-  static const assistantPrimary = Color(0xFF40916C);
+  /// 앱 아이콘/스플래시/폴리 어시스턴트와 같은 모아폴리 개구리 몸통 초록색 —
+  /// 앱 전체의 브랜드 강조색으로 통일해서 쓴다 (예전엔 토스 블루였음).
+  static const primary = Color(0xFF40916C);
   static const background = Color(0xFFFFFFFF);
   static const textPrimary = Color(0xFF191F28);
   static const textSecondary = Color(0xFF8B95A1);

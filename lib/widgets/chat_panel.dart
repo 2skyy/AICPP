@@ -283,7 +283,7 @@ class _ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final alignment = message.isUser ? Alignment.centerRight : Alignment.centerLeft;
-    final bubbleColor = message.isUser ? TossColors.assistantPrimary : TossColors.fieldFill;
+    final bubbleColor = message.isUser ? TossColors.primary : TossColors.fieldFill;
     final textColor = message.isUser ? Colors.white : TossColors.textPrimary;
 
     return Align(
@@ -361,7 +361,7 @@ class _ChatInputBar extends StatelessWidget {
             padding: const EdgeInsets.all(8),
             constraints: const BoxConstraints(),
             style: IconButton.styleFrom(
-              backgroundColor: TossColors.assistantPrimary,
+              backgroundColor: TossColors.primary,
               shape: const CircleBorder(),
             ),
           ),

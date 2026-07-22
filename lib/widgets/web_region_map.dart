@@ -42,7 +42,7 @@ const _maxPadDiameter = 116.0;
 
 /// Pad colors by tier — also shown in [MainScreen]'s legend (`main_screen.dart`),
 /// so keep this the single source of truth for both.
-const kWebMapHomeColor = TossColors.assistantPrimary;
+const kWebMapHomeColor = TossColors.primary;
 const kWebMapInterestedColor = Color(0xFF74C69D);
 const kWebMapOtherColor = Color(0xFFB7E4C7);
 

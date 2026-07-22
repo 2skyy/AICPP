@@ -1,11 +1,11 @@
 {
-    "name": "aicpp",
-    "short_name": "aicpp",
+    "name": "모아폴리",
+    "short_name": "모아폴리",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#D8F3DC",
     "theme_color": "#D8F3DC",
-    "description": "A new Flutter project.",
+    "description": "청년정책 지도앱 모아폴리",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

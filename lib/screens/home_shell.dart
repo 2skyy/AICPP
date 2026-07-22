@@ -151,7 +151,7 @@ class _HomeShellState extends State<HomeShell> {
                   bottom: navBarHeight + 16,
                   child: FloatingActionButton(
                     heroTag: 'chat_toggle',
-                    backgroundColor: TossColors.assistantPrimary,
+                    backgroundColor: TossColors.primary,
                     onPressed: _toggleChat,
                     child: _chatOpen
                         ? const Icon(Icons.close, color: Colors.white)
