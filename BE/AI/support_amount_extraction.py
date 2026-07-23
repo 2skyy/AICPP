@@ -29,14 +29,29 @@ MODEL = "claude-sonnet-5"
 
 DETERMINATION_RULES = """[판정 기준]
 정책 원문을 읽고, 청년 개인(또는 청년 창업기업)에게 실제로 돈이 지급되는지 판정해.
+있음/없음/확인필요 3가지 중 하나로만 판정한다 — 비율기반이라는 별도 카테고리는 없다.
 
-- 있음: 청년 개인/창업기업에게 실제 현금이 지급됨
-- 비율기반: 정액이 아니라 비용의 일정 비율(%)을 지원함 (예: 이자 50% 지원, 매칭 적립)
+- 있음: 청년 개인/창업기업에게 실제 현금이 지급되고, 금액이 원문에서 하나의 값(또는
+  범위의 상한값)으로 특정됨
 - 없음: 아래 중 하나라도 해당하면 없음
   - 대출/융자/보증 한도 (상환해야 하는 돈이라 지원금이 아님)
   - 사업 전체 예산, 펀드 조성액 (개인에게 지급되는 금액이 아님)
   - 자격조건·심사기준에 등장하는 숫자 (예: 소득 기준, 나이 상한)
   - 시설 이용, 교육, 컨설팅, 공간 대여처럼 현금이 아닌 현물/서비스성 지원
+- 확인필요: 아래 중 하나라도 해당하면 확인필요
+  - 비율기반 지원 (정액이 아니라 이자 일부 지원, 정부 매칭 적립처럼 비용의 일정
+    비율(%)을 지원 — 예: "청년내일저축계좌", "K-패스")
+  - 소득구간·연도·지역 등 조건에 따라 정액/매칭 방식 자체가 달라져서 원문만으로
+    단일 금액을 특정할 수 없음
+
+확인필요는 도피처가 아니다 — 있음/없음으로 확실히 판단할 수 있는데 애매하다는 이유만으로
+확인필요를 고르지 마라. 아래 순서로 먼저 있음/없음을 확정 지으려 시도하고, 그래도 안 되는
+경우에만 확인필요를 써라:
+  1. 원문에 구체적 금액(OO원, OO만원)이 하나로 특정돼 있으면 → 있음 (범위면 상한값)
+  2. 대출/사업예산/자격조건 숫자/서비스이용형 바우처/기관·센터·시스템 운영·교육·컨설팅처럼
+     현금이 아닌 현물·서비스·행정운영이면 → 없음 (이런 유형은 "판단하기 애매해서"가 아니라
+     "원래 개인에게 돈이 안 가는 사업"이니 자신 있게 없음으로 판정해라)
+  3. 위 둘 다 아니고, 진짜 비율기반이거나 조건별로 금액 자체가 달라지는 경우에만 → 확인필요
 
 바우처/이용권은 두 종류를 구분해:
   - 구매력형(=있음): 카드/포인트에 총액이 미리 충전되어 지정 카테고리 안에서 본인이 자유롭게
@@ -49,6 +64,12 @@ DETERMINATION_RULES = """[판정 기준]
 지자체 행사(축제·공연·심사위원 모집 등) 공고문처럼 원문에 금액이 전혀 안 나오는 경우는
 아래 [판정 예시]를 참고해서 판단해 — 이런 유형은 원문에 안 적혀 있어도 실제로는 사례비/
 활동비가 관행적으로 지급되는 경우가 있다.
+
+보호종료(자립준비청년), 가족돌봄청년, 한부모, 고립·은둔청년처럼 "개인의 특수한 사정"에
+따라 대상 여부·금액이 케이스별로 달라지는 정책은 원문 텍스트만으로 판정을 100% 확신하기
+어렵다. 이런 유형은 판정은 최선으로 하되 confidence를 0.8 이하로 낮게 매겨서, 확신이
+낮다는 걸 있는 그대로 드러내라 — 실제로는 아리송한데 confidence를 0.9 이상으로 매겨서
+확정처럼 보이게 하지 마라.
 """
 
 FEWSHOT_TRAIN_NOS = [
@@ -62,8 +83,8 @@ FEWSHOT_TRAIN_NOS = [
     "20260415005400112751",  # (복지부) 26년 정신건강 심리상담 바우처사업 — 없음, 서비스이용형 바우처
     "20250121005400110344",  # 2025년 전국민마음투자지원사업 — 없음, 서비스이용형 바우처
     "20250316005400210640",  # 서울청년문화패스 지원 — 있음, 구매력형 바우처(카드)
-    "20260430005400113009",  # 청년내일저축계좌 — 비율기반, 정부 매칭 적립
-    "20260710005400113257",  # K-패스(K패스) — 비율기반, 요금 환급 비율
+    "20260430005400113009",  # 청년내일저축계좌 — 확인필요(비율기반), 정부 매칭 적립
+    "20260710005400113257",  # K-패스(K패스) — 확인필요(비율기반), 요금 환급 비율
 ]
 
 REGEX_CANDIDATE_PATTERN = re.compile(
@@ -97,6 +118,17 @@ GROUND_TRUTH_CORRECTIONS = {
 }
 
 
+def normalize_to_3way(raw: str | None) -> str | None:
+    """xlsx 원본은 있음/없음/비율기반/확인 필요(자유서식) 4갈래인데, 지금 스키마는
+    있음/없음/확인필요 3갈래다. 비율기반과 '확인 필요'류(표기가 제각각인 자유 텍스트
+    포함)를 전부 확인필요로 합친다."""
+    if not raw:
+        return raw
+    if raw == "비율기반" or raw.startswith("확인"):
+        return "확인필요"
+    return raw
+
+
 def load_labeled_rows() -> list[dict]:
     wb = openpyxl.load_workbook(XLSX_PATH, data_only=True)
     ws = wb["Sheet1"] if "Sheet1" in wb.sheetnames else wb[wb.sheetnames[0]]
@@ -114,8 +146,8 @@ def load_labeled_rows() -> list[dict]:
                 "policy_no": policy_no,
                 "policy_name": row[idx["정책명"]],
                 "raw_content": row[idx["정책지원내용(원문)"]] or "",
-                "baseline": row[idx["자동판정(참고)"]],
-                "ground_truth": ground_truth,
+                "baseline": normalize_to_3way(row[idx["자동판정(참고)"]]),
+                "ground_truth": normalize_to_3way(ground_truth),
             }
         )
     return rows
@@ -179,21 +211,14 @@ def score(results: list[dict]) -> tuple[int, int, list[dict]]:
     return correct, total, mismatches
 
 
-def is_scoreable(ground_truth: str | None) -> bool:
-    """'확인 필요'/'확인필요(...)' 류는 정답 자체가 3지선다 밖이라 채점에서 제외한다."""
-    return bool(ground_truth) and not ground_truth.startswith("확인")
-
-
 if __name__ == "__main__":
     out_dir = Path(__file__).resolve().parent / "results"
     out_dir.mkdir(exist_ok=True)
 
     all_rows = load_labeled_rows()
-    scoreable_rows = [r for r in all_rows if is_scoreable(r["ground_truth"])]
-    excluded = len(all_rows) - len(scoreable_rows)
-    print(f"전체 {len(all_rows)}건 중 '확인 필요'류 {excluded}건 제외 → 채점 대상 {len(scoreable_rows)}건")
+    print(f"전체 {len(all_rows)}건 (있음/없음/확인필요 3지선다, 제외 없음)")
 
-    eval_rows = [r for r in scoreable_rows if r["policy_no"] not in FEWSHOT_TRAIN_NOS]
+    eval_rows = [r for r in all_rows if r["policy_no"] not in FEWSHOT_TRAIN_NOS]
     print(f"few-shot 학습 예시 {len(FEWSHOT_TRAIN_NOS)}건 제외 → held-out 평가셋 {len(eval_rows)}건\n")
 
     baseline_correct = sum(1 for r in eval_rows if r["baseline"] == r["ground_truth"])
@@ -228,7 +253,6 @@ if __name__ == "__main__":
 
     summary = {
         "held_out_size": len(eval_rows),
-        "excluded_confirm_needed": excluded,
         "fewshot_train_size": len(FEWSHOT_TRAIN_NOS),
         "baseline_accuracy": baseline_correct / len(eval_rows),
         "v1_accuracy": correct_v1 / total_v1,

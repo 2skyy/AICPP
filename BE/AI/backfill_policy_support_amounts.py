@@ -90,8 +90,8 @@ def upsert(engine, rows_with_extraction: list[tuple[dict, SupportAmountExtractio
         if extraction.determination == "있음":
             amount_type = "고정금액"
             amount_krw = extraction.amount_krw
-        elif extraction.determination == "비율기반":
-            amount_type = "비율기반"
+        elif extraction.determination == "확인필요":
+            amount_type = "확인필요"
             amount_percent = extraction.amount_percent
         payload.append(
             {
