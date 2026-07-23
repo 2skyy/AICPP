@@ -166,6 +166,9 @@ class ChatService:
                     lines.append(f"   지원내용: {item['plcySprtCn']}")
                 if item.get("plcyAplyMthdCn"):
                     lines.append(f"   신청방법: {item['plcyAplyMthdCn']}")
+                apply_url = item.get("aplyUrlAddr") or item.get("refUrlAddr1")
+                if apply_url:
+                    lines.append(f"   신청링크: {apply_url}")
 
         scrapped = profile.get("scrapped_policies") or []
         lines.append("")
@@ -185,6 +188,8 @@ class ChatService:
                     lines.append(f"   지원내용: {policy['support_content']}")
                 if policy.get("apply_method"):
                     lines.append(f"   신청방법: {policy['apply_method']}")
+                if policy.get("apply_url"):
+                    lines.append(f"   신청링크: {policy['apply_url']}")
         return "\n".join(lines)
 
 

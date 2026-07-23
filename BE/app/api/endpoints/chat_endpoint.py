@@ -18,6 +18,7 @@ class ScrappedPolicyIn(BaseModel):
     description: str | None = None
     support_content: str | None = None
     apply_method: str | None = None
+    apply_url: str | None = None
 
 
 class ProfileIn(BaseModel):

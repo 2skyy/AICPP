@@ -45,6 +45,7 @@ class ChatApiService {
                   'description': p.description,
                   'support_content': p.supportContent,
                   'apply_method': p.applyMethod,
+                  'apply_url': p.applyUrl,
                 })
             .toList(),
       },

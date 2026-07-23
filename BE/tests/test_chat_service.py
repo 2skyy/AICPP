@@ -166,6 +166,36 @@ class ChatServiceTest(unittest.TestCase):
         self.assertIn("청년월세지원", system_prompt)
         self.assertIn("월 20만원 지원", system_prompt)
 
+    def test_includes_the_apply_url_for_searched_and_scrapped_policies(self):
+        policy_service = Mock()
+        policy_service.search.return_value = {
+            "result": {
+                "youthPolicyList": [
+                    {
+                        "plcyNm": "청년내일캠프",
+                        "aplyUrlAddr": "https://example.com/apply",
+                    }
+                ]
+            }
+        }
+        anthropic_client = Mock()
+        anthropic_client.messages.create.return_value = _text_message("확인해드릴게요.")
+
+        service = ChatService(policy_service, client=anthropic_client)
+        service.ask(
+            "주거지원이 궁금해요",
+            {
+                "region": "서울특별시",
+                "scrapped_policies": [
+                    {"name": "청년월세지원", "apply_url": "https://example.com/scrapped"}
+                ],
+            },
+        )
+
+        system_prompt = anthropic_client.messages.create.call_args.kwargs["system"]
+        self.assertIn("https://example.com/apply", system_prompt)
+        self.assertIn("https://example.com/scrapped", system_prompt)
+
     def test_notes_no_scrapped_policies_when_the_list_is_empty(self):
         policy_service = Mock()
         policy_service.search.return_value = {"result": {"youthPolicyList": []}}
