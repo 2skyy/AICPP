@@ -80,15 +80,25 @@ class ChatService:
     ) -> tuple[list[dict[str, Any]], int | None]:
         keyword = extract_topic_keyword(question)
         region = profile.get("region")
+        today = date.today()
+
         if keyword:
             raw = self.policy_service.search(topic=keyword, size=10)
-        elif region:
+            items = [item for item in _extract_items(raw) if _is_open(item, today)]
+            if items:
+                return items, _extract_total_count(raw)
+            # 온통청년 API의 키워드 검색이 정상적인 키워드에도 0건을 반환하는 경우가
+            # 있어서, 그럴 때 지역 검색으로 한 번 더 시도한다(완전히 빈 손으로
+            # "못 찾았다"고 답하기 전에).
+            if not region:
+                return [], _extract_total_count(raw)
+
+        if region:
             raw = self.policy_service.search(region=region, size=10)
-        else:
-            return [], None
-        today = date.today()
-        items = [item for item in _extract_items(raw) if _is_open(item, today)]
-        return items, _extract_total_count(raw)
+            items = [item for item in _extract_items(raw) if _is_open(item, today)]
+            return items, _extract_total_count(raw)
+
+        return [], None
 
     def _generate_answer(
         self,

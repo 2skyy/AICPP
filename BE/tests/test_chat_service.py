@@ -8,7 +8,7 @@ from app.services.keyword_extractor import extract_topic_keyword
 
 class ExtractTopicKeywordTest(unittest.TestCase):
     def test_finds_a_known_keyword_inside_the_question(self):
-        self.assertEqual(extract_topic_keyword("내 지역 청년 주거지원이 궁금해요"), "주거")
+        self.assertEqual(extract_topic_keyword("내 지역 청년 주거지원이 궁금해요"), "주거지원")
 
     def test_returns_none_when_no_known_keyword_is_present(self):
         self.assertIsNone(extract_topic_keyword("나이 조건에 맞는 정책 알려줘"))
@@ -56,7 +56,7 @@ class ChatServiceTest(unittest.TestCase):
             {"region": "서울특별시", "enrollment_status": "재학", "age": 26},
         )
 
-        policy_service.search.assert_called_once_with(topic="주거", size=10)
+        policy_service.search.assert_called_once_with(topic="주거지원", size=10)
         self.assertEqual(result["answer"], "주거지원 정책을 안내해드릴게요.")
         self.assertEqual(result["policies"], [{"name": "청년월세지원", "period": "20260101 ~ 20261231"}])
 

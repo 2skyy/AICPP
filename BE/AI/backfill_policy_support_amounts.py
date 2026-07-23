@@ -125,6 +125,7 @@ def upsert(engine, rows_with_extraction: list[tuple[dict, SupportAmountExtractio
                     source = EXCLUDED.source,
                     note = EXCLUDED.note,
                     extracted_at = EXCLUDED.extracted_at
+                WHERE policy_support_amounts.verification_status IS DISTINCT FROM 'VERIFIED'
                 """
             ),
             payload,
