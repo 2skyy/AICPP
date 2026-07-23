@@ -94,6 +94,33 @@ FEWSHOT_TRAIN_NOS = [
     "20260710005400113257",  # K-패스(K패스) — 확인필요(비율기반), 요금 환급 비율
 ]
 
+# 정책명에 이 키워드가 들어가면 LLM 판정과 상관없이 확인필요로 강제한다.
+# 최신 xlsx에서 사람이 "자립"(자립준비청년) 계열 8건과 "청년내일저축계좌"/"청년도약계좌"
+# 계열을 직접 확인필요로 재라벨링해서, 개인 사정·소득구간별로 금액이 달라지는 이
+# 정책군은 원문 텍스트로 개별 판단하기보다 이름으로 바로 확인필요 처리하는 게 정답과
+# 더 잘 맞는다고 확정됐다. "한부모"/"빈곤"도 81건 표본에서 이름이 들어간 건 전부
+# 정답이 확인필요였음을 확인하고 추가했다 — "가족돌봄"/"고립"/"은둔"은 반대로 정답이
+# 대부분 확인필요가 아니라서(가족돌봄 2/2 없음, 고립·은둔은 혼재) 뺐다. "출산"은 표본
+# 1건("고용보험 미적용자 출산급여 지원")만 있고 그 정답이 '없음'이라 "위기청년
+# 자립지원"과 같은 성격의 예외로 처리했다(아래 EXCEPTIONS).
+NAME_BASED_CONFIRM_NEEDED_KEYWORDS = ["자립", "청년내일저축계좌", "청년도약", "한부모", "빈곤", "출산"]
+
+# 이름에 위 키워드가 들어가지만 사람 정답이 확인필요가 아닌 예외.
+# - 20250625005400111134 "위기청년 자립지원(시설퇴소청소년 자립지원수당 지원)":
+#   "자립"이 들어가도 정답이 '있음'(월 지급액이 명확한 자립지원수당).
+# - 20250123005400110386 "고용보험 미적용자 출산급여 지원": "출산"이 들어가도
+#   정답이 '없음'(청년정책 특유의 개인 사정 변수가 아니라 고용보험 미적용자 전체에게
+#   임신주수별로 정액 지급되는 급여라 확인필요로 볼 근거가 약함).
+NAME_BASED_OVERRIDE_EXCEPTIONS = {"20250625005400111134", "20250123005400110386"}
+
+
+def apply_name_based_override(policy_no: str, policy_name: str, determination: str) -> str:
+    if policy_no in NAME_BASED_OVERRIDE_EXCEPTIONS:
+        return determination
+    if any(kw in policy_name for kw in NAME_BASED_CONFIRM_NEEDED_KEYWORDS):
+        return "확인필요"
+    return determination
+
 REGEX_CANDIDATE_PATTERN = re.compile(
     r"\d[\d,]*\s*(?:천|백)?\s*만\s*원|\d[\d,]*\s*원(?!\w)|\d+(?:\.\d+)?\s*%"
 )
@@ -117,12 +144,11 @@ def build_fewshot_block(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
-# 자동판정(인간) 원본값 대비 사람이 직접 확인해서 정정한 값.
-# 20260330005400112329 "자립준비청년 자립수당지원": 원문이 "매월 50만원 지급"으로 다른
-# 자립수당 정책(같은 원문 패턴)과 동일한데 정답만 '없음'으로 잘못 입력돼 있었음 → '있음'으로 정정.
-GROUND_TRUTH_CORRECTIONS = {
-    "20260330005400112329": "있음",
-}
+# 자동판정(인간) 원본값 대비 사람이 직접 확인해서 정정한 값. 20260330005400112329
+# "자립준비청년 자립수당지원"은 이전 xlsx 버전에서 '없음'으로 잘못 입력돼 있어 '있음'으로
+# 정정했었는데, 최신 xlsx는 이 정책을 포함해 자립 계열 다수를 '확인필요'로 직접 갱신해서
+# 더 이상 코드 쪽에서 덮어쓸 필요가 없다 — 새 xlsx 값을 그대로 신뢰한다.
+GROUND_TRUTH_CORRECTIONS: dict[str, str] = {}
 
 
 def normalize_to_3way(raw: str | None) -> str | None:
@@ -131,6 +157,7 @@ def normalize_to_3way(raw: str | None) -> str | None:
     포함)를 전부 확인필요로 합친다."""
     if not raw:
         return raw
+    raw = raw.strip()
     if raw == "비율기반" or raw.startswith("확인"):
         return "확인필요"
     return raw
@@ -153,7 +180,7 @@ def load_labeled_rows() -> list[dict]:
                 "policy_no": policy_no,
                 "policy_name": row[idx["정책명"]],
                 "raw_content": row[idx["정책지원내용(원문)"]] or "",
-                "baseline": normalize_to_3way(row[idx["자동판정(참고)"]]),
+                "baseline": normalize_to_3way(row[idx["베이스라인자동판정"]]),
                 "ground_truth": normalize_to_3way(ground_truth),
             }
         )
@@ -198,7 +225,8 @@ def run_batch(system_prompt: str, rows: list[dict], workers: int = 8) -> list[di
         i, row = i_row
         try:
             extraction = extract_one(client, row, system_prompt)
-            results[i] = {**row, "predicted": extraction.determination, "extraction": extraction.model_dump(mode="json")}
+            predicted = apply_name_based_override(row["policy_no"], row["policy_name"], extraction.determination)
+            results[i] = {**row, "predicted": predicted, "extraction": extraction.model_dump(mode="json")}
         except Exception as exc:  # noqa: BLE001
             results[i] = {**row, "predicted": None, "error": str(exc)}
 

@@ -22,6 +22,7 @@ from sqlalchemy import create_engine, text
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from support_amount_extraction import (  # noqa: E402
     DETERMINATION_RULES,
+    apply_name_based_override,
     build_fewshot_block,
     build_tool_schema,
     find_regex_candidates,
@@ -84,13 +85,14 @@ def upsert(engine, rows_with_extraction: list[tuple[dict, SupportAmountExtractio
     now = datetime.now(timezone.utc)
     payload = []
     for row, extraction in rows_with_extraction:
+        determination = apply_name_based_override(row["policy_no"], row["policy_name"], extraction.determination)
         amount_type = None
         amount_krw = None
         amount_percent = None
-        if extraction.determination == "있음":
+        if determination == "있음":
             amount_type = "고정금액"
             amount_krw = extraction.amount_krw
-        elif extraction.determination == "확인필요":
+        elif determination == "확인필요":
             amount_type = "확인필요"
             amount_percent = extraction.amount_percent
         payload.append(
