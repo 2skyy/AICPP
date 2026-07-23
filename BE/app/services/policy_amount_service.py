@@ -8,10 +8,15 @@ from sqlalchemy.exc import SQLAlchemyError
 class PolicyAmountService:
     """정책지원금액 추출 파이프라인이 Supabase에 적재한 정확한 지원금액을 조회한다.
 
-    오프라인 배치(정규식+LLM+사람 검토)로 뽑은 값이라 온통청년 API의 실시간
-    응답보다 정확하지만, 스냅샷이라 최신 정책은 아직 없을 수 있다. 그래서
-    조회 실패/미스매치는 예외를 던지지 않고 빈 결과로 처리해서, 호출부가
-    항상 온통청년 응답을 그대로 보여줄 수 있게(하이브리드) 한다.
+    오프라인 배치(정규식+LLM)로 뽑은 값이라 온통청년 API의 실시간 응답보다
+    정확하지만, 스냅샷이라 최신 정책은 아직 없을 수 있다. 그래서 조회
+    실패/미스매치는 예외를 던지지 않고 빈 결과로 처리해서, 호출부가 항상
+    온통청년 응답을 그대로 보여줄 수 있게(하이브리드) 한다.
+
+    verification_status='VERIFIED'(사람 검토 완료)는 전부 가져오고, 아직 사람
+    검토 전인 'PENDING'은 confidence >= 0.9인 것만 "AI 추정치(검토 전)"로
+    같이 내려준다 — 검토 안 된 값을 확정치처럼 보여주지 않기 위해
+    sprt_amt_verified로 둘을 구분해서 반환한다.
     """
 
     def __init__(self, db_url: str | None = None):
@@ -26,11 +31,19 @@ class PolicyAmountService:
                 rows = conn.execute(
                     text(
                         """
-                        SELECT plcy_no, sprt_amt_krw, sprt_amt_type, sprt_amt_pct,
-                               sprt_amt_confidence, sprt_amt_evidence, sprt_amt_source,
-                               sprt_amt_note
-                        FROM policies
-                        WHERE plcy_no = ANY(:nos)
+                        SELECT policy_no AS plcy_no,
+                               amount_krw AS sprt_amt_krw,
+                               amount_type AS sprt_amt_type,
+                               amount_percent AS sprt_amt_pct,
+                               confidence AS sprt_amt_confidence,
+                               evidence AS sprt_amt_evidence,
+                               source AS sprt_amt_source,
+                               note AS sprt_amt_note,
+                               (verification_status = 'VERIFIED') AS sprt_amt_verified
+                        FROM policy_support_amounts
+                        WHERE policy_no = ANY(:nos)
+                          AND (verification_status = 'VERIFIED'
+                               OR (verification_status = 'PENDING' AND confidence >= 0.9))
                         """
                     ),
                     {"nos": policy_numbers},

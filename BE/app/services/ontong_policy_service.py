@@ -71,6 +71,7 @@ class OntongPolicyService:
             item["sprtAmtEvidence"] = row.get("sprt_amt_evidence")
             item["sprtAmtSource"] = row.get("sprt_amt_source")
             item["sprtAmtNote"] = row.get("sprt_amt_note")
+            item["sprtAmtVerified"] = row.get("sprt_amt_verified")
 
     @staticmethod
     def _join(values: Sequence[str] | None) -> str | None:

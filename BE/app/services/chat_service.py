@@ -122,6 +122,11 @@ class ChatService:
             "목록에 있는 내용은 지원금액·신청기간·신청방법까지 구체적으로 자세히 설명해. "
             "목록에 없는 내용은 절대 추측하지 말고 모른다고 짧고 솔직하게 말해 — 아는 "
             "척하거나 얼버무리지 마.",
+            "정책에 '확정 지원금액'이 있으면 사람이 검토까지 마친 정확한 값이니 확신 있게 "
+            "알려줘. 'AI 추정(검토 전, 참고용) 지원금액'만 있으면 아직 사람이 검토하지 "
+            "않은 값이라고 꼭 밝히고 '약 OO원으로 추정되는데, 정확한 금액은 확인이 "
+            "필요해' 처럼 말해. 둘 다 없는 정책은 '지원내용' 원문에 적힌 대로만 말하고, "
+            "원문에도 구체적 금액이 없으면 금액은 모른다고 솔직하게 말해.",
             "[정책 목록]에 이번 질문 조건에 맞는 정책이 없으면 '이번 질문으로는 못 "
             "찾았어'처럼 이번 검색에 한정해서 말하고, 마치 정책 정보 자체가 아예 없는 "
             "것처럼 말하지 마. 이전 답변을 정정하거나 '아, 그 말이 아니라' 같은 자기 "
@@ -160,6 +165,11 @@ class ChatService:
                     f"(지원기관: {item.get('sprvsnInstCdNm', '미상')}, "
                     f"신청기간: {item.get('aplyYmd', '상시')})"
                 )
+                amt_label = "확정" if item.get("sprtAmtVerified") else "AI 추정(검토 전, 참고용)"
+                if item.get("sprtAmtKrw"):
+                    lines.append(f"   {amt_label} 지원금액: {item['sprtAmtKrw']:,}원")
+                elif item.get("sprtAmtType") == "비율기반" and item.get("sprtAmtPct"):
+                    lines.append(f"   {amt_label} 지원비율: {item['sprtAmtPct']}%")
                 if item.get("plcyExplnCn"):
                     lines.append(f"   설명: {item['plcyExplnCn']}")
                 if item.get("plcySprtCn"):
